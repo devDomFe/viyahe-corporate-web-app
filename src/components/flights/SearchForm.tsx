@@ -30,6 +30,7 @@ import type { TripType, CabinClass, FlightSearchParams } from '@/types/flight';
 import { searchAirports } from '@/mocks/airports';
 import type { Airport } from '@/types/flight';
 import { DatePicker } from '@/components/common';
+import { useMultiBooking } from '@/hooks/useMultiBooking';
 
 const tripTypes = createListCollection({
   items: [
@@ -140,6 +141,7 @@ function AirportInput({ label, value, onChange, placeholder }: AirportInputProps
 
 export function SearchForm() {
   const router = useRouter();
+  const { activeBookingId, createBooking, setSearchParams: setBookingSearchParams } = useMultiBooking();
   const [tripType, setTripType] = useState<TripType>('round_trip');
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -169,6 +171,15 @@ export function SearchForm() {
       passengers: parseInt(passengers),
       cabinClass,
     };
+
+    // Ensure we have an active booking
+    let bookingId = activeBookingId;
+    if (!bookingId) {
+      bookingId = createBooking();
+    }
+
+    // Update the booking with search params
+    setBookingSearchParams(bookingId, params);
 
     const searchParams = new URLSearchParams({
       tripType: params.tripType,

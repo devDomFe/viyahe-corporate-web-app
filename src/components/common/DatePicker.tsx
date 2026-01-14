@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Box, Button, Flex, Grid, Input, Text, IconButton } from '@chakra-ui/react';
+import { Box, Button, Flex, Grid, Input, Text, IconButton, Portal } from '@chakra-ui/react';
 
 interface DatePickerProps {
   value: string; // YYYY-MM-DD format
   onChange: (value: string) => void;
   minDate?: string; // YYYY-MM-DD format
   placeholder?: string;
+  disabled?: boolean;
 }
 
 const MONTHS = [
@@ -17,19 +18,26 @@ const MONTHS = [
 
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-export function DatePicker({ value, onChange, minDate, placeholder = 'Select date' }: DatePickerProps) {
+export function DatePicker({ value, onChange, minDate, placeholder = 'Select date', disabled = false }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => {
     if (value) return new Date(value);
     if (minDate) return new Date(minDate);
     return new Date();
   });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isInsideContainer = containerRef.current?.contains(target);
+      const isInsideDropdown = dropdownRef.current?.contains(target);
+
+      if (!isInsideContainer && !isInsideDropdown) {
         setIsOpen(false);
       }
     };
@@ -98,35 +106,52 @@ export function DatePicker({ value, onChange, minDate, placeholder = 'Select dat
     });
   };
 
+  const handleInputClick = () => {
+    if (disabled) return;
+
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+      });
+    }
+    setIsOpen(!isOpen);
+  };
+
   return (
     <Box position="relative" ref={containerRef}>
       <Input
+        ref={inputRef}
         readOnly
         value={value ? formatDisplayDate(value) : ''}
         placeholder={placeholder}
-        onClick={() => setIsOpen(!isOpen)}
-        cursor="pointer"
+        onClick={handleInputClick}
+        cursor={disabled ? 'not-allowed' : 'pointer'}
         size="lg"
         px="4"
         h="12"
         bg="white"
+        disabled={disabled}
+        opacity={disabled ? 0.6 : 1}
       />
 
-      {isOpen && (
-        <Box
-          position="absolute"
-          top="100%"
-          left="0"
-          mt="2"
-          bg="white"
-          borderRadius="lg"
-          boxShadow="xl"
-          border="1px solid"
-          borderColor="gray.200"
-          zIndex="dropdown"
-          p="3"
-          minW="260px"
-        >
+      {isOpen && !disabled && (
+        <Portal>
+          <Box
+            ref={dropdownRef}
+            position="absolute"
+            top={`${dropdownPosition.top}px`}
+            left={`${dropdownPosition.left}px`}
+            bg="white"
+            borderRadius="lg"
+            boxShadow="xl"
+            border="1px solid"
+            borderColor="gray.200"
+            zIndex="1400"
+            p="3"
+            minW="260px"
+          >
           {/* Header */}
           <Flex justify="space-between" align="center" mb="3">
             <Button
@@ -191,7 +216,8 @@ export function DatePicker({ value, onChange, minDate, placeholder = 'Select dat
               </Box>
             ))}
           </Grid>
-        </Box>
+          </Box>
+        </Portal>
       )}
     </Box>
   );

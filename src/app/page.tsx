@@ -1,10 +1,32 @@
-import { Box, Container, Flex, Heading, Text, VStack } from '@chakra-ui/react';
+import Link from 'next/link';
+import { Box, Container, Flex, Heading, Text, VStack, Button, HStack } from '@chakra-ui/react';
 import { SearchForm } from '@/components/flights/SearchForm';
 
 export default function Home() {
   return (
-    <Box minH="100vh" bg="gray.50" px={{ base: '4', md: '8' }}>
-      <Flex minH="100vh" align="center" justify="center">
+    <Box minH="100vh" bg="gray.50" px={{ base: '4', md: '8' }} pt={{ base: '4', md: '6' }}>
+      {/* Top Navigation */}
+      <Flex
+        bg="white"
+        borderBottom="1px solid"
+        borderColor="gray.200"
+        px={{ base: '4', md: '8' }}
+        py="3"
+        justify="space-between"
+        align="center"
+        borderRadius="lg"
+      >
+        <Heading size="md" color="blue.600">
+          Viyahe
+        </Heading>
+        <Link href="/passengers">
+          <Button variant="ghost" size="sm">
+            Manage Passengers
+          </Button>
+        </Link>
+      </Flex>
+
+      <Flex minH="calc(100vh - 60px)" align="center" justify="center">
         <Container maxW="3xl" py={{ base: '8', md: '16' }}>
           <VStack gap={{ base: '8', md: '12' }} align="stretch">
             <VStack gap="3" align="center">

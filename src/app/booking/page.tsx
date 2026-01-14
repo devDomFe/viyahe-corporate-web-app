@@ -10,15 +10,24 @@ import {
   Text,
   VStack,
   Button,
+  HStack,
 } from '@chakra-ui/react';
 import { Alert } from '@chakra-ui/react/alert';
 import { Spinner } from '@chakra-ui/react/spinner';
-import { PassengerForm, BookingExtras, FlightSummary } from '@/components/booking';
+import {
+  BookingExtras,
+  FlightSummary,
+  SavedPassengersSidebar,
+  PassengerCard,
+  SavePassengerModal,
+} from '@/components/booking';
 import type { FlightOffer, FlightSearchParams } from '@/types/flight';
-import type { PassengerFormData, Passenger } from '@/types/passenger';
+import type { Passenger, PassengerFormData } from '@/types/passenger';
 import type { AgentNotification, Booking, BookingRequest } from '@/types/booking';
-import { EMPTY_PASSENGER_FORM } from '@/types/passenger';
-import { validatePassengerForm } from '@/utils/validation';
+import { useSavedPassengers } from '@/hooks/useSavedPassengers';
+import { useBookingPassengers } from '@/hooks/useBookingPassengers';
+import { useMultiBooking } from '@/hooks/useMultiBooking';
+import { formDataToSavedPassenger } from '@/types/saved-passenger';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 15);
@@ -26,89 +35,118 @@ function generateId(): string {
 
 export default function BookingPage() {
   const router = useRouter();
-  const [flight, setFlight] = useState<FlightOffer | null>(null);
-  const [searchParams, setSearchParams] = useState<FlightSearchParams | null>(null);
+  const {
+    activeBooking,
+    activeBookingId,
+    setBookingStatus,
+    removeBooking,
+    setPassengers: setContextPassengers,
+  } = useMultiBooking();
+
+  // Get flight and searchParams from context
+  const flight = activeBooking?.selectedFlight ?? null;
+  const searchParams = activeBooking?.searchParams ?? null;
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form state
-  const [passengers, setPassengers] = useState<PassengerFormData[]>([]);
-  const [passengerErrors, setPassengerErrors] = useState<Record<string, string>[]>([]);
+  // Form extras state
   const [discountCode, setDiscountCode] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
 
-  // Load flight data from session storage
-  useEffect(() => {
-    const storedFlight = sessionStorage.getItem('selectedFlight');
-    const storedParams = sessionStorage.getItem('searchParams');
+  // Mobile sidebar state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-    if (!storedFlight || !storedParams) {
+  // Save modal state
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [newPassengersToSave, setNewPassengersToSave] = useState<PassengerFormData[]>([]);
+
+  // Saved passengers hook
+  const {
+    filteredPassengers,
+    state: savedPassengersState,
+    searchQuery,
+    setSearchQuery,
+    bulkCreatePassengers,
+  } = useSavedPassengers();
+
+  // Booking passengers hook
+  const {
+    passengers,
+    addFromSaved,
+    addNew,
+    updatePassenger,
+    removePassenger,
+    expandedIds,
+    toggleExpand,
+    errors,
+    validateAll,
+    getSavedPassengerIds,
+    getNewPassengersToSave,
+    passengerCount,
+  } = useBookingPassengers(0);
+
+  // Check if we have a valid booking from context
+  useEffect(() => {
+    if (!activeBooking) {
       setError('No flight selected. Please search for flights first.');
       setIsLoading(false);
       return;
     }
 
-    try {
-      const parsedFlight = JSON.parse(storedFlight) as FlightOffer;
-      const parsedParams = JSON.parse(storedParams) as FlightSearchParams;
-
-      setFlight(parsedFlight);
-      setSearchParams(parsedParams);
-
-      // Initialize passenger forms based on passenger count
-      const passengerCount = parsedParams.passengers || 1;
-      setPassengers(Array(passengerCount).fill(null).map(() => ({ ...EMPTY_PASSENGER_FORM })));
-      setPassengerErrors(Array(passengerCount).fill({}));
-    } catch (err) {
-      setError('Failed to load flight data.');
-      console.error('Error parsing flight data:', err);
-    } finally {
+    if (!activeBooking.selectedFlight || !activeBooking.searchParams) {
+      setError('No flight selected. Please search for flights first.');
       setIsLoading(false);
+      return;
     }
-  }, []);
 
-  const handlePassengerChange = (index: number, data: PassengerFormData) => {
-    const newPassengers = [...passengers];
-    newPassengers[index] = data;
-    setPassengers(newPassengers);
+    // Update booking status to 'filling' (only if not already submitted)
+    if (activeBookingId && activeBooking.status !== 'filling' && activeBooking.status !== 'submitted') {
+      setBookingStatus(activeBookingId, 'filling');
+    }
 
-    // Clear errors for this passenger
-    const newErrors = [...passengerErrors];
-    newErrors[index] = {};
-    setPassengerErrors(newErrors);
+    setIsLoading(false);
+  }, [activeBooking, activeBookingId, setBookingStatus]);
+
+  // Sync passengers to context whenever they change
+  useEffect(() => {
+    if (activeBookingId && passengers.length > 0) {
+      setContextPassengers(activeBookingId, passengers);
+    }
+  }, [activeBookingId, passengers, setContextPassengers]);
+
+  // Get IDs of saved passengers that have been added to booking
+  const addedSavedPassengerIds = getSavedPassengerIds();
+
+  // Calculate passenger limit
+  const requiredPassengers = searchParams?.passengers || 1;
+  const isAtPassengerLimit = passengerCount >= requiredPassengers;
+
+  // Wrapper to prevent adding when at limit
+  const handleAddFromSaved = (passenger: Parameters<typeof addFromSaved>[0]) => {
+    if (isAtPassengerLimit) return;
+    addFromSaved(passenger);
   };
 
-  const validateAllPassengers = (): { valid: boolean; errorMessages: string[] } => {
-    const newErrors: Record<string, string>[] = [];
-    let allValid = true;
-    const errorMessages: string[] = [];
-
-    passengers.forEach((passenger, index) => {
-      const result = validatePassengerForm(passenger);
-      newErrors.push(result.errors);
-      if (!result.valid) {
-        allValid = false;
-        // Collect specific error messages
-        Object.entries(result.errors).forEach(([field, message]) => {
-          const fieldLabel = field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1');
-          errorMessages.push(`Passenger ${index + 1}: ${fieldLabel} - ${message}`);
-        });
-      }
-    });
-
-    setPassengerErrors(newErrors);
-    return { valid: allValid, errorMessages };
+  const handleAddNew = () => {
+    if (isAtPassengerLimit) return;
+    addNew();
   };
 
   const handleSubmit = async () => {
     if (!flight || !searchParams) return;
 
+    // Check if we have enough passengers
+    if (passengerCount < requiredPassengers) {
+      setError(`Please add ${requiredPassengers} passenger${requiredPassengers > 1 ? 's' : ''} to continue.`);
+      return;
+    }
+
     // Validate all passengers
-    const validation = validateAllPassengers();
-    if (!validation.valid) {
-      const errorList = validation.errorMessages.slice(0, 5).join('\n');
-      setError(`Please fix the following errors:\n${errorList}`);
+    const isValid = validateAll();
+    if (!isValid) {
+      setError('Please fix the errors in the passenger forms.');
       return;
     }
 
@@ -116,28 +154,25 @@ export default function BookingPage() {
     setError(null);
 
     try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
       // Create passenger objects
-      const passengerList: Passenger[] = passengers.map((p, index) => ({
+      const passengerList: Passenger[] = passengers.map((p) => ({
         id: generateId(),
         type: 'adult' as const,
-        title: p.title,
-        firstName: p.firstName,
-        lastName: p.lastName,
-        middleName: p.middleName || undefined,
-        dateOfBirth: p.dateOfBirth,
-        gender: p.gender as 'male' | 'female' | 'other',
-        email: p.email,
-        phone: p.phone,
-        nationality: p.nationality || undefined,
-        identityDocument: p.documentType
+        title: p.data.title,
+        firstName: p.data.firstName,
+        lastName: p.data.lastName,
+        middleName: p.data.middleName || undefined,
+        dateOfBirth: p.data.dateOfBirth,
+        gender: p.data.gender as 'male' | 'female' | 'other',
+        email: p.data.email,
+        phone: p.data.phone,
+        nationality: p.data.nationality || undefined,
+        identityDocument: p.data.documentType
           ? {
-              type: p.documentType as 'passport' | 'national_id' | 'drivers_license',
-              number: p.documentNumber,
-              issuingCountry: p.documentIssuingCountry,
-              expiryDate: p.documentExpiryDate,
+              type: p.data.documentType as 'passport' | 'national_id' | 'drivers_license',
+              number: p.data.documentNumber,
+              issuingCountry: p.data.documentIssuingCountry,
+              expiryDate: p.data.documentExpiryDate,
             }
           : undefined,
       }));
@@ -150,8 +185,8 @@ export default function BookingPage() {
         passengers: passengerList,
         discountCode: discountCode || undefined,
         specialRequests: specialRequests || undefined,
-        contactEmail: passengers[0].email,
-        contactPhone: passengers[0].phone,
+        contactEmail: passengers[0].data.email,
+        contactPhone: passengers[0].data.phone,
         createdAt: new Date().toISOString(),
       };
 
@@ -200,14 +235,37 @@ export default function BookingPage() {
       sessionStorage.setItem('booking', JSON.stringify(booking));
       sessionStorage.setItem('notification', JSON.stringify(notification));
 
-      // Navigate to confirmation
-      router.push('/booking/confirmation');
+      // Update booking status to submitted
+      if (activeBookingId) {
+        setBookingStatus(activeBookingId, 'submitted');
+      }
+
+      // Check if there are new passengers to save
+      const newPassengers = getNewPassengersToSave();
+      if (newPassengers.length > 0) {
+        setNewPassengersToSave(newPassengers);
+        setShowSaveModal(true);
+      } else {
+        // No new passengers, go directly to confirmation
+        router.push('/booking/confirmation');
+      }
     } catch (err) {
       setError('Failed to submit booking. Please try again.');
       console.error('Booking submission error:', err);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSavePassengers = async (passengersToSave: PassengerFormData[]) => {
+    const createData = passengersToSave.map(formDataToSavedPassenger);
+    await bulkCreatePassengers(createData);
+    router.push('/booking/confirmation');
+  };
+
+  const handleSkipSave = () => {
+    setShowSaveModal(false);
+    router.push('/booking/confirmation');
   };
 
   // Check if flight is international (simple check)
@@ -218,7 +276,7 @@ export default function BookingPage() {
   if (isLoading) {
     return (
       <Box minH="100vh" bg="gray.50" px={{ base: '4', md: '8' }}>
-        <Container maxW="6xl" py={{ base: '8', md: '10' }}>
+        <Container maxW="7xl" py={{ base: '8', md: '10' }}>
           <Flex justify="center" align="center" minH="400px">
             <VStack gap="4">
               <Spinner size="xl" color="blue.500" />
@@ -233,7 +291,7 @@ export default function BookingPage() {
   if (!flight || !searchParams) {
     return (
       <Box minH="100vh" bg="gray.50" px={{ base: '4', md: '8' }}>
-        <Container maxW="6xl" py={{ base: '8', md: '10' }}>
+        <Container maxW="7xl" py={{ base: '8', md: '10' }}>
           <Alert.Root status="error">
             <Alert.Indicator />
             <Alert.Content>
@@ -252,17 +310,22 @@ export default function BookingPage() {
   }
 
   return (
-    <Box minH="100vh" bg="gray.50" pb="10">
-      <Container maxW="6xl" py={{ base: '6', md: '10' }} px={{ base: '4', md: '8' }} mx="auto">
+    <Box minH="100vh" bg="gray.50" pb="10" pt={{ base: '4', md: '6' }}>
+      <Container maxW="7xl" py={{ base: '6', md: '10' }} px={{ base: '4', md: '8' }} mx="auto">
         <VStack gap={{ base: '5', md: '6' }} align="stretch">
           {/* Header */}
-          <Flex justify="space-between" align="center">
+          <Flex justify="space-between" align="center" flexWrap="wrap" gap="4">
             <Heading size="xl" color="blue.600">
               Complete Your Booking
             </Heading>
-            <Button variant="outline" size="lg" px="6" onClick={() => router.back()}>
-              Back to Flights
-            </Button>
+            <HStack gap="3">
+              <Text fontSize="sm" color="gray.600">
+                {passengerCount} of {requiredPassengers} passengers added
+              </Text>
+              <Button variant="outline" size="md" px="6" onClick={() => router.back()}>
+                Back to Flights
+              </Button>
+            </HStack>
           </Flex>
 
           {/* Error Alert */}
@@ -270,31 +333,108 @@ export default function BookingPage() {
             <Alert.Root status="error">
               <Alert.Indicator />
               <Alert.Content>
-                <Alert.Title>Validation Error</Alert.Title>
-                <Alert.Description>
-                  <Box as="pre" whiteSpace="pre-wrap" fontSize="sm">
-                    {error}
-                  </Box>
-                </Alert.Description>
+                <Alert.Title>Error</Alert.Title>
+                <Alert.Description>{error}</Alert.Description>
               </Alert.Content>
             </Alert.Root>
           )}
 
-          <Flex gap={{ base: '6', lg: '8' }} direction={{ base: 'column', lg: 'row' }}>
-            {/* Main Form */}
-            <Box flex="1">
-              <VStack gap={{ base: '6', md: '8' }} align="stretch">
-                {/* Passenger Forms */}
-                {passengers.map((passenger, index) => (
-                  <PassengerForm
-                    key={index}
-                    passengerNumber={index + 1}
-                    data={passenger}
-                    onChange={(data) => handlePassengerChange(index, data)}
-                    errors={passengerErrors[index]}
-                    isInternational={isInternational}
-                  />
-                ))}
+          {/* Main Layout: Sidebar + Content + Flight Summary */}
+          <Flex gap={{ base: '6', lg: '6' }} direction={{ base: 'column', lg: 'row' }}>
+            {/* Saved Passengers Sidebar */}
+            <SavedPassengersSidebar
+              savedPassengers={filteredPassengers}
+              state={savedPassengersState}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onSelectPassenger={handleAddFromSaved}
+              addedPassengerIds={addedSavedPassengerIds}
+              isOpen={isSidebarOpen}
+              onClose={() => setIsSidebarOpen(false)}
+              isAtLimit={isAtPassengerLimit}
+            />
+
+            {/* Main Content Area */}
+            <Box flex="1" minW="0">
+              <VStack gap={{ base: '5', md: '6' }} align="stretch">
+                {/* Mobile Action Buttons */}
+                <HStack display={{ base: 'flex', lg: 'none' }} gap="3">
+                  <Button
+                    variant="outline"
+                    flex="1"
+                    onClick={() => setIsSidebarOpen(true)}
+                    disabled={isAtPassengerLimit}
+                  >
+                    Add from Directory
+                  </Button>
+                  <Button
+                    variant="outline"
+                    flex="1"
+                    onClick={handleAddNew}
+                    disabled={isAtPassengerLimit}
+                  >
+                    Add New Passenger
+                  </Button>
+                </HStack>
+
+                {/* Desktop Add Button */}
+                <HStack display={{ base: 'none', lg: 'flex' }} justify="flex-end">
+                  <Button
+                    variant="outline"
+                    onClick={handleAddNew}
+                    disabled={isAtPassengerLimit}
+                    px="6"
+                  >
+                    + Add New Passenger
+                  </Button>
+                </HStack>
+
+                {/* Passenger Limit Info */}
+                {isAtPassengerLimit && (
+                  <Alert.Root status="info">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Description>
+                        All {requiredPassengers} passenger{requiredPassengers > 1 ? 's' : ''} added. Remove a passenger to add a different one.
+                      </Alert.Description>
+                    </Alert.Content>
+                  </Alert.Root>
+                )}
+
+                {/* Passenger Cards */}
+                {passengers.length === 0 ? (
+                  <Box
+                    bg="white"
+                    borderRadius="lg"
+                    p="8"
+                    textAlign="center"
+                    border="2px dashed"
+                    borderColor="gray.200"
+                  >
+                    <Text color="gray.500" mb="4">
+                      No passengers added yet.
+                    </Text>
+                    <Text fontSize="sm" color="gray.400">
+                      Select from saved passengers in the sidebar or add a new passenger.
+                    </Text>
+                  </Box>
+                ) : (
+                  <VStack gap="4" align="stretch">
+                    {passengers.map((passenger, index) => (
+                      <PassengerCard
+                        key={passenger.id}
+                        passenger={passenger}
+                        index={index}
+                        isExpanded={expandedIds.has(passenger.id)}
+                        onToggleExpand={() => toggleExpand(passenger.id)}
+                        onChange={(data) => updatePassenger(passenger.id, data)}
+                        onRemove={() => removePassenger(passenger.id)}
+                        errors={errors.get(passenger.id)}
+                        isInternational={isInternational}
+                      />
+                    ))}
+                  </VStack>
+                )}
 
                 {/* Extras */}
                 <BookingExtras
@@ -312,7 +452,7 @@ export default function BookingPage() {
                     w="full"
                     onClick={handleSubmit}
                     loading={isSubmitting}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || passengerCount < requiredPassengers}
                   >
                     Submit Booking Request
                   </Button>
@@ -320,8 +460,8 @@ export default function BookingPage() {
               </VStack>
             </Box>
 
-            {/* Sidebar - Flight Summary */}
-            <Box w={{ base: 'full', lg: '380px' }} flexShrink={0}>
+            {/* Right Sidebar - Flight Summary */}
+            <Box w={{ base: 'full', lg: '350px' }} flexShrink={0}>
               <Box position={{ lg: 'sticky' }} top={{ lg: '24px' }}>
                 <VStack gap="5" align="stretch">
                   <FlightSummary flight={flight} />
@@ -334,7 +474,7 @@ export default function BookingPage() {
                       w="full"
                       onClick={handleSubmit}
                       loading={isSubmitting}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || passengerCount < requiredPassengers}
                     >
                       Submit Booking Request
                     </Button>
@@ -348,6 +488,14 @@ export default function BookingPage() {
           </Flex>
         </VStack>
       </Container>
+
+      {/* Save Passengers Modal */}
+      <SavePassengerModal
+        isOpen={showSaveModal}
+        onClose={handleSkipSave}
+        passengers={newPassengersToSave}
+        onSave={handleSavePassengers}
+      />
     </Box>
   );
 }

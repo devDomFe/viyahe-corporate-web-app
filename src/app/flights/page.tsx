@@ -17,6 +17,7 @@ import { Alert } from '@chakra-ui/react/alert';
 import { Spinner } from '@chakra-ui/react/spinner';
 import { FlightList, FlightFilters, FlightSort } from '@/components/flights';
 import { useFlightSearch } from '@/hooks/useFlightSearch';
+import { useMultiBooking } from '@/hooks/useMultiBooking';
 import type { FlightSearchParams, TripType, CabinClass } from '@/types/flight';
 import { formatDate, formatCabinClass, formatPassengers, formatRoute } from '@/utils/format';
 
@@ -51,6 +52,14 @@ function SearchSummary({ params }: { params: FlightSearchParams }) {
 function FlightsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const {
+    activeBooking,
+    activeBookingId,
+    createBooking,
+    setSearchParams: setBookingSearchParams,
+    setSelectedFlight: setBookingSelectedFlight,
+    setActiveBooking,
+  } = useMultiBooking();
 
   // Parse search params
   const flightSearchParams = useMemo<FlightSearchParams | null>(() => {
@@ -98,11 +107,17 @@ function FlightsContent() {
   };
 
   const handleContinueToBooking = () => {
-    if (!selectedFlightId || !flightSearchParams) return;
+    if (!selectedFlightId || !flightSearchParams || !selectedFlight) return;
 
-    // Store selected flight in session storage for the booking page
-    sessionStorage.setItem('selectedFlight', JSON.stringify(selectedFlight));
-    sessionStorage.setItem('searchParams', JSON.stringify(flightSearchParams));
+    // Ensure we have an active booking, create one if needed
+    let bookingId = activeBookingId;
+    if (!bookingId) {
+      bookingId = createBooking();
+    }
+
+    // Update the booking with search params and selected flight
+    setBookingSearchParams(bookingId, flightSearchParams);
+    setBookingSelectedFlight(bookingId, selectedFlight);
 
     router.push('/booking');
   };
@@ -129,7 +144,7 @@ function FlightsContent() {
   }
 
   return (
-    <Box minH="100vh" bg="gray.50" px={{ base: '4', md: '8' }}>
+    <Box minH="100vh" bg="gray.50" px={{ base: '4', md: '8' }} pt={{ base: '4', md: '6' }}>
       <Container maxW="7xl" py={{ base: '6', md: '10' }}>
         <VStack gap={{ base: '5', md: '6' }} align="stretch">
           {/* Header */}
