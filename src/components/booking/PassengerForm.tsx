@@ -337,6 +337,7 @@ interface BookingExtrasProps {
   specialRequests: string;
   onDiscountCodeChange: (code: string) => void;
   onSpecialRequestsChange: (requests: string) => void;
+  isDisabled?: boolean;
 }
 
 export function BookingExtras({
@@ -344,6 +345,7 @@ export function BookingExtras({
   specialRequests,
   onDiscountCodeChange,
   onSpecialRequestsChange,
+  isDisabled = false,
 }: BookingExtrasProps) {
   return (
     <Box bg="white" borderRadius="lg" boxShadow="sm" p={{ base: '6', md: '8' }}>
@@ -365,6 +367,7 @@ export function BookingExtras({
             px="4"
             py="3"
             h="12"
+            disabled={isDisabled}
           />
           <Text fontSize="xs" color="gray.500" mt="1">
             Corporate discount codes can be entered here
@@ -383,6 +386,7 @@ export function BookingExtras({
             size="lg"
             px="4"
             py="3"
+            disabled={isDisabled}
           />
         </Box>
       </VStack>

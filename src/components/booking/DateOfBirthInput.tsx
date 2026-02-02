@@ -12,6 +12,7 @@ import {
 interface DateOfBirthInputProps {
   value: string; // YYYY-MM-DD format
   onChange: (value: string) => void;
+  disabled?: boolean;
 }
 
 const months = createListCollection({
@@ -48,7 +49,7 @@ const years = createListCollection({
   }),
 });
 
-export function DateOfBirthInput({ value, onChange }: DateOfBirthInputProps) {
+export function DateOfBirthInput({ value, onChange, disabled = false }: DateOfBirthInputProps) {
   // Parse the current value
   const [year, month, day] = value ? value.split('-') : ['', '', ''];
 
@@ -87,6 +88,7 @@ export function DateOfBirthInput({ value, onChange }: DateOfBirthInputProps) {
           value={month ? [month] : []}
           onValueChange={(e) => handleChange('month', e.value[0])}
           size="lg"
+          disabled={disabled}
         >
           <SelectTrigger h="12" px="4">
             <SelectValueText placeholder="Month" />
@@ -108,6 +110,7 @@ export function DateOfBirthInput({ value, onChange }: DateOfBirthInputProps) {
           value={day ? [day] : []}
           onValueChange={(e) => handleChange('day', e.value[0])}
           size="lg"
+          disabled={disabled}
         >
           <SelectTrigger h="12" px="4">
             <SelectValueText placeholder="Day" />
@@ -129,6 +132,7 @@ export function DateOfBirthInput({ value, onChange }: DateOfBirthInputProps) {
           value={year ? [year] : []}
           onValueChange={(e) => handleChange('year', e.value[0])}
           size="lg"
+          disabled={disabled}
         >
           <SelectTrigger h="12" px="4">
             <SelectValueText placeholder="Year" />

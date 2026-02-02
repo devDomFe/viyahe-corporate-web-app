@@ -1,8 +1,7 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useMemo } from 'react';
 import {
   Box,
   Container,
@@ -12,16 +11,123 @@ import {
   VStack,
   Button,
   HStack,
+  Badge,
 } from '@chakra-ui/react';
 import { Alert } from '@chakra-ui/react/alert';
 import { Spinner } from '@chakra-ui/react/spinner';
 import { FlightList, FlightFilters, FlightSort } from '@/components/flights';
 import { useFlightSearch } from '@/hooks/useFlightSearch';
 import { useMultiBooking } from '@/hooks/useMultiBooking';
-import type { FlightSearchParams, TripType, CabinClass } from '@/types/flight';
-import { formatDate, formatCabinClass, formatPassengers, formatRoute } from '@/utils/format';
+import type { FlightSearchParams, TripType, CabinClass, FlightOffer } from '@/types/flight';
+import { formatDate, formatCabinClass, formatPassengers, formatRoute, formatCurrency } from '@/utils/format';
 
-function SearchSummary({ params }: { params: FlightSearchParams }) {
+interface LegInfo {
+  origin: string;
+  destination: string;
+  date: string;
+}
+
+function MultiCityLegSelector({
+  legs,
+  currentLegIndex,
+  selectedFlights,
+  onLegClick,
+}: {
+  legs: LegInfo[];
+  currentLegIndex: number;
+  selectedFlights: (FlightOffer | null)[];
+  onLegClick: (index: number) => void;
+}) {
+  return (
+    <Box bg="white" borderRadius="lg" boxShadow="sm" p={{ base: '4', md: '5' }}>
+      <Text fontSize="sm" fontWeight="medium" color="gray.600" mb="3">
+        Select flights for each leg:
+      </Text>
+      <VStack align="stretch" gap="2">
+        {legs.map((leg, index) => {
+          const isSelected = selectedFlights[index] !== null;
+          const isCurrent = index === currentLegIndex;
+          const flight = selectedFlights[index];
+
+          return (
+            <Box
+              key={index}
+              p="3"
+              borderRadius="md"
+              border="2px solid"
+              borderColor={isCurrent ? 'blue.500' : isSelected ? 'green.500' : 'gray.200'}
+              bg={isCurrent ? 'blue.50' : isSelected ? 'green.50' : 'white'}
+              cursor="pointer"
+              onClick={() => onLegClick(index)}
+              _hover={{ borderColor: isCurrent ? 'blue.500' : 'blue.300' }}
+            >
+              <Flex justify="space-between" align="center">
+                <HStack gap="3">
+                  <Badge
+                    colorPalette={isCurrent ? 'blue' : isSelected ? 'green' : 'gray'}
+                    size="lg"
+                  >
+                    {index + 1}
+                  </Badge>
+                  <Box>
+                    <Text fontWeight="medium">
+                      {formatRoute(leg.origin, leg.destination)}
+                    </Text>
+                    <Text fontSize="sm" color="gray.600">
+                      {formatDate(leg.date)}
+                    </Text>
+                  </Box>
+                </HStack>
+                {isSelected && flight && (
+                  <Text fontWeight="bold" color="green.600">
+                    {flight.priceWithMarkup.displayAmount}
+                  </Text>
+                )}
+                {!isSelected && isCurrent && (
+                  <Badge colorPalette="blue">Selecting</Badge>
+                )}
+                {!isSelected && !isCurrent && (
+                  <Text fontSize="sm" color="gray.400">Not selected</Text>
+                )}
+              </Flex>
+            </Box>
+          );
+        })}
+      </VStack>
+    </Box>
+  );
+}
+
+function SearchSummary({ params, currentLeg }: { params: FlightSearchParams; currentLeg?: LegInfo }) {
+  const isMultiCity = params.tripType === 'multi_city';
+
+  if (isMultiCity && currentLeg) {
+    return (
+      <Box bg="blue.50" borderRadius="lg" boxShadow="sm" p={{ base: '4', md: '5' }} border="2px solid" borderColor="blue.200">
+        <Flex
+          direction={{ base: 'column', md: 'row' }}
+          justify="space-between"
+          align={{ base: 'start', md: 'center' }}
+          gap="2"
+        >
+          <HStack gap="4" flexWrap="wrap">
+            <Text fontWeight="bold" fontSize="lg">
+              {formatRoute(currentLeg.origin, currentLeg.destination)}
+            </Text>
+            <Text color="gray.600">
+              {formatDate(currentLeg.date)}
+            </Text>
+          </HStack>
+          <HStack gap="2">
+            <Text fontSize="sm" color="gray.500">
+              {formatPassengers(params.passengers)} • {formatCabinClass(params.cabinClass)}
+            </Text>
+          </HStack>
+        </Flex>
+      </Box>
+    );
+  }
+
   return (
     <Box bg="white" borderRadius="lg" boxShadow="sm" p={{ base: '4', md: '5' }}>
       <Flex
@@ -53,12 +159,11 @@ function FlightsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
-    activeBooking,
     activeBookingId,
     createBooking,
     setSearchParams: setBookingSearchParams,
     setSelectedFlight: setBookingSelectedFlight,
-    setActiveBooking,
+    updateBooking,
   } = useMultiBooking();
 
   // Parse search params
@@ -70,9 +175,19 @@ function FlightsContent() {
     const returnDate = searchParams.get('returnDate');
     const passengers = searchParams.get('passengers');
     const cabinClass = searchParams.get('cabinClass') as CabinClass | null;
+    const additionalLegsParam = searchParams.get('additionalLegs');
 
     if (!tripType || !origin || !destination || !departureDate || !cabinClass) {
       return null;
+    }
+
+    let additionalLegs: { origin: string; destination: string; date: string }[] | undefined;
+    if (additionalLegsParam) {
+      try {
+        additionalLegs = JSON.parse(additionalLegsParam);
+      } catch {
+        additionalLegs = undefined;
+      }
     }
 
     return {
@@ -83,8 +198,63 @@ function FlightsContent() {
       returnDate: returnDate || undefined,
       passengers: passengers ? parseInt(passengers) : 1,
       cabinClass,
+      additionalLegs,
     };
   }, [searchParams]);
+
+  // Build legs array for multi-city
+  const legs = useMemo<LegInfo[]>(() => {
+    if (!flightSearchParams) return [];
+    if (flightSearchParams.tripType !== 'multi_city') return [];
+
+    const allLegs: LegInfo[] = [
+      {
+        origin: flightSearchParams.origin,
+        destination: flightSearchParams.destination,
+        date: flightSearchParams.departureDate,
+      },
+    ];
+
+    if (flightSearchParams.additionalLegs) {
+      flightSearchParams.additionalLegs.forEach((leg) => {
+        allLegs.push({
+          origin: leg.origin,
+          destination: leg.destination,
+          date: leg.date,
+        });
+      });
+    }
+
+    return allLegs;
+  }, [flightSearchParams]);
+
+  const isMultiCity = flightSearchParams?.tripType === 'multi_city' && legs.length > 1;
+
+  // Multi-city state
+  const [currentLegIndex, setCurrentLegIndex] = useState(0);
+  const [selectedFlights, setSelectedFlights] = useState<(FlightOffer | null)[]>(
+    () => legs.map(() => null)
+  );
+
+  // Current leg search params (for multi-city, search for current leg only)
+  const currentSearchParams = useMemo<FlightSearchParams | null>(() => {
+    if (!flightSearchParams) return null;
+
+    if (isMultiCity && legs[currentLegIndex]) {
+      const currentLeg = legs[currentLegIndex];
+      return {
+        ...flightSearchParams,
+        tripType: 'one_way' as TripType, // Search as one-way for each leg
+        origin: currentLeg.origin,
+        destination: currentLeg.destination,
+        departureDate: currentLeg.date,
+        returnDate: undefined,
+        additionalLegs: undefined,
+      };
+    }
+
+    return flightSearchParams;
+  }, [flightSearchParams, isMultiCity, legs, currentLegIndex]);
 
   const {
     filteredFlights,
@@ -100,14 +270,50 @@ function FlightsContent() {
     selectedFlightId,
     setSelectedFlightId,
     selectedFlight,
-  } = useFlightSearch(flightSearchParams);
+  } = useFlightSearch(currentSearchParams);
 
   const handleSelectFlight = (flightId: string) => {
-    setSelectedFlightId(flightId === selectedFlightId ? null : flightId);
+    if (isMultiCity) {
+      // For multi-city, selecting a flight moves to next leg
+      const flight = filteredFlights.find((f) => f.id === flightId);
+      if (flight) {
+        const newSelectedFlights = [...selectedFlights];
+        newSelectedFlights[currentLegIndex] = flight;
+        setSelectedFlights(newSelectedFlights);
+
+        // Move to next unselected leg or stay if all selected
+        const nextUnselectedIndex = newSelectedFlights.findIndex((f, i) => f === null && i > currentLegIndex);
+        if (nextUnselectedIndex !== -1) {
+          setCurrentLegIndex(nextUnselectedIndex);
+        } else {
+          // Check if there's any unselected leg
+          const anyUnselected = newSelectedFlights.findIndex((f) => f === null);
+          if (anyUnselected !== -1) {
+            setCurrentLegIndex(anyUnselected);
+          }
+        }
+      }
+    } else {
+      setSelectedFlightId(flightId === selectedFlightId ? null : flightId);
+    }
   };
 
+  const handleLegClick = (index: number) => {
+    setCurrentLegIndex(index);
+  };
+
+  // Calculate total price for multi-city
+  const totalMultiCityPrice = useMemo(() => {
+    if (!isMultiCity) return 0;
+    return selectedFlights.reduce((total, flight) => {
+      return total + (flight?.priceWithMarkup.amount || 0);
+    }, 0);
+  }, [isMultiCity, selectedFlights]);
+
+  const allLegsSelected = isMultiCity && selectedFlights.every((f) => f !== null);
+
   const handleContinueToBooking = () => {
-    if (!selectedFlightId || !flightSearchParams || !selectedFlight) return;
+    if (!flightSearchParams) return;
 
     // Ensure we have an active booking, create one if needed
     let bookingId = activeBookingId;
@@ -115,9 +321,47 @@ function FlightsContent() {
       bookingId = createBooking();
     }
 
-    // Update the booking with search params and selected flight
-    setBookingSearchParams(bookingId, flightSearchParams);
-    setBookingSelectedFlight(bookingId, selectedFlight);
+    if (isMultiCity && allLegsSelected) {
+      // Combine all selected flights into one FlightOffer with multiple slices
+      const combinedSlices = selectedFlights.flatMap((flight) => flight?.slices || []);
+      const combinedFlight: FlightOffer = {
+        id: `combined_${Date.now()}`,
+        slices: combinedSlices,
+        totalPrice: {
+          amount: selectedFlights.reduce((sum, f) => sum + (f?.totalPrice.amount || 0), 0),
+          currency: 'USD',
+          displayAmount: formatCurrency(selectedFlights.reduce((sum, f) => sum + (f?.totalPrice.amount || 0), 0), 'USD'),
+        },
+        basePrice: {
+          amount: selectedFlights.reduce((sum, f) => sum + (f?.basePrice.amount || 0), 0),
+          currency: 'USD',
+          displayAmount: formatCurrency(selectedFlights.reduce((sum, f) => sum + (f?.basePrice.amount || 0), 0), 'USD'),
+        },
+        taxesAndFees: {
+          amount: selectedFlights.reduce((sum, f) => sum + (f?.taxesAndFees.amount || 0), 0),
+          currency: 'USD',
+          displayAmount: formatCurrency(selectedFlights.reduce((sum, f) => sum + (f?.taxesAndFees.amount || 0), 0), 'USD'),
+        },
+        priceWithMarkup: {
+          amount: totalMultiCityPrice,
+          currency: 'USD',
+          displayAmount: formatCurrency(totalMultiCityPrice, 'USD'),
+        },
+        passengers: flightSearchParams.passengers,
+        cabinClass: flightSearchParams.cabinClass,
+        refundable: selectedFlights.every((f) => f?.refundable),
+        fareRules: selectedFlights[0]?.fareRules || [],
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      };
+
+      setBookingSearchParams(bookingId, flightSearchParams);
+      setBookingSelectedFlight(bookingId, combinedFlight);
+    } else if (selectedFlight) {
+      setBookingSearchParams(bookingId, flightSearchParams);
+      setBookingSelectedFlight(bookingId, selectedFlight);
+    } else {
+      return;
+    }
 
     router.push('/booking');
   };
@@ -143,6 +387,9 @@ function FlightsContent() {
     );
   }
 
+  const showContinueButton = isMultiCity ? allLegsSelected : !!selectedFlight;
+  const displayPrice = isMultiCity ? totalMultiCityPrice : selectedFlight?.priceWithMarkup.amount;
+
   return (
     <Box minH="100vh" bg="gray.50" px={{ base: '4', md: '8' }} pt={{ base: '4', md: '6' }}>
       <Container maxW="7xl" py={{ base: '6', md: '10' }}>
@@ -157,8 +404,21 @@ function FlightsContent() {
             </Button>
           </Flex>
 
-          {/* Search Summary */}
-          <SearchSummary params={flightSearchParams} />
+          {/* Multi-city leg selector */}
+          {isMultiCity && (
+            <MultiCityLegSelector
+              legs={legs}
+              currentLegIndex={currentLegIndex}
+              selectedFlights={selectedFlights}
+              onLegClick={handleLegClick}
+            />
+          )}
+
+          {/* Search Summary for current leg */}
+          <SearchSummary
+            params={flightSearchParams}
+            currentLeg={isMultiCity ? legs[currentLegIndex] : undefined}
+          />
 
           {/* Error Alert */}
           {error && (
@@ -194,10 +454,22 @@ function FlightsContent() {
                   resultCount={filteredFlights.length}
                 />
 
+                {/* Current leg indicator for multi-city */}
+                {isMultiCity && (
+                  <Alert.Root status="info">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Description>
+                        Selecting flight for Leg {currentLegIndex + 1}: {legs[currentLegIndex]?.origin} → {legs[currentLegIndex]?.destination}
+                      </Alert.Description>
+                    </Alert.Content>
+                  </Alert.Root>
+                )}
+
                 {/* Flight List */}
                 <FlightList
                   flights={filteredFlights}
-                  selectedFlightId={selectedFlightId || undefined}
+                  selectedFlightId={isMultiCity ? selectedFlights[currentLegIndex]?.id : selectedFlightId || undefined}
                   onSelectFlight={handleSelectFlight}
                   isLoading={isLoading}
                 />
@@ -206,7 +478,7 @@ function FlightsContent() {
           </Flex>
 
           {/* Continue Button (Fixed at bottom when flight selected) */}
-          {selectedFlight && (
+          {showContinueButton && (
             <Box
               position="fixed"
               bottom="0"
@@ -222,9 +494,11 @@ function FlightsContent() {
               <Container maxW="7xl" px={{ base: '4', md: '8' }}>
                 <Flex justify="space-between" align="center">
                   <Box>
-                    <Text fontWeight="medium">Selected Flight</Text>
+                    <Text fontWeight="medium">
+                      {isMultiCity ? `All ${legs.length} flights selected` : 'Selected Flight'}
+                    </Text>
                     <Text fontSize="lg" fontWeight="bold" color="blue.600">
-                      {selectedFlight.priceWithMarkup.displayAmount}
+                      {formatCurrency(displayPrice || 0, 'USD')}
                     </Text>
                   </Box>
                   <Button colorPalette="blue" size="lg" px="8" onClick={handleContinueToBooking}>
@@ -236,7 +510,7 @@ function FlightsContent() {
           )}
 
           {/* Spacer for fixed bottom bar */}
-          {selectedFlight && <Box h="100px" />}
+          {showContinueButton && <Box h="100px" />}
         </VStack>
       </Container>
     </Box>

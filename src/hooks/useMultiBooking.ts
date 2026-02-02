@@ -31,6 +31,7 @@ export function useMultiBooking() {
     updateBooking: context.updateBooking,
     setSearchParams: context.setSearchParams,
     setSelectedFlight: context.setSelectedFlight,
+    clearSelectedFlight: context.clearSelectedFlight,
     setPassengers: context.setPassengers,
     setBookingStatus: context.setBookingStatus,
   };
@@ -41,7 +42,7 @@ export function useMultiBooking() {
  * Provides a simpler API when you only care about the current booking
  */
 export function useActiveBooking() {
-  const { activeBooking, updateBooking, setSearchParams, setSelectedFlight, setPassengers, setBookingStatus } =
+  const { activeBooking, updateBooking, setSearchParams, setSelectedFlight, clearSelectedFlight, setPassengers, setBookingStatus } =
     useMultiBooking();
 
   const update = (updates: Partial<DraftBooking>) => {
@@ -59,6 +60,12 @@ export function useActiveBooking() {
   const setFlight = (flight: FlightOffer) => {
     if (activeBooking) {
       setSelectedFlight(activeBooking.id, flight);
+    }
+  };
+
+  const clearFlight = () => {
+    if (activeBooking) {
+      clearSelectedFlight(activeBooking.id);
     }
   };
 
@@ -84,6 +91,7 @@ export function useActiveBooking() {
     update,
     setSearch,
     setFlight,
+    clearFlight,
     setPassengers: setBookingPassengers,
     setStatus,
   };

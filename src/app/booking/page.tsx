@@ -47,6 +47,9 @@ export default function BookingPage() {
   const flight = activeBooking?.selectedFlight ?? null;
   const searchParams = activeBooking?.searchParams ?? null;
 
+  // Check if booking is locked (submitted status)
+  const isLocked = activeBooking?.status === 'submitted';
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -328,6 +331,19 @@ export default function BookingPage() {
             </HStack>
           </Flex>
 
+          {/* Locked Alert */}
+          {isLocked && (
+            <Alert.Root status="warning">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>Booking Submitted</Alert.Title>
+                <Alert.Description>
+                  This booking has been submitted and cannot be edited. Contact support for changes.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert.Root>
+          )}
+
           {/* Error Alert */}
           {error && (
             <Alert.Root status="error">
@@ -363,7 +379,7 @@ export default function BookingPage() {
                     variant="outline"
                     flex="1"
                     onClick={() => setIsSidebarOpen(true)}
-                    disabled={isAtPassengerLimit}
+                    disabled={isAtPassengerLimit || isLocked}
                   >
                     Add from Directory
                   </Button>
@@ -371,7 +387,7 @@ export default function BookingPage() {
                     variant="outline"
                     flex="1"
                     onClick={handleAddNew}
-                    disabled={isAtPassengerLimit}
+                    disabled={isAtPassengerLimit || isLocked}
                   >
                     Add New Passenger
                   </Button>
@@ -382,7 +398,7 @@ export default function BookingPage() {
                   <Button
                     variant="outline"
                     onClick={handleAddNew}
-                    disabled={isAtPassengerLimit}
+                    disabled={isAtPassengerLimit || isLocked}
                     px="6"
                   >
                     + Add New Passenger
@@ -431,6 +447,7 @@ export default function BookingPage() {
                         onRemove={() => removePassenger(passenger.id)}
                         errors={errors.get(passenger.id)}
                         isInternational={isInternational}
+                        isLocked={isLocked}
                       />
                     ))}
                   </VStack>
@@ -442,32 +459,12 @@ export default function BookingPage() {
                   specialRequests={specialRequests}
                   onDiscountCodeChange={setDiscountCode}
                   onSpecialRequestsChange={setSpecialRequests}
+                  isDisabled={isLocked}
                 />
 
                 {/* Submit Button (mobile) */}
-                <Box display={{ base: 'block', lg: 'none' }}>
-                  <Button
-                    colorPalette="blue"
-                    size="lg"
-                    w="full"
-                    onClick={handleSubmit}
-                    loading={isSubmitting}
-                    disabled={isSubmitting || passengerCount < requiredPassengers}
-                  >
-                    Submit Booking Request
-                  </Button>
-                </Box>
-              </VStack>
-            </Box>
-
-            {/* Right Sidebar - Flight Summary */}
-            <Box w={{ base: 'full', lg: '350px' }} flexShrink={0}>
-              <Box position={{ lg: 'sticky' }} top={{ lg: '24px' }}>
-                <VStack gap="5" align="stretch">
-                  <FlightSummary flight={flight} />
-
-                  {/* Submit Button (desktop) */}
-                  <Box display={{ base: 'none', lg: 'block' }}>
+                {!isLocked && (
+                  <Box display={{ base: 'block', lg: 'none' }}>
                     <Button
                       colorPalette="blue"
                       size="lg"
@@ -478,10 +475,49 @@ export default function BookingPage() {
                     >
                       Submit Booking Request
                     </Button>
-                    <Text fontSize="xs" color="gray.500" mt="2" textAlign="center">
-                      By submitting, you agree to our terms and conditions
-                    </Text>
                   </Box>
+                )}
+              </VStack>
+            </Box>
+
+            {/* Right Sidebar - Flight Summary */}
+            <Box w={{ base: 'full', lg: '350px' }} flexShrink={0}>
+              <Box position={{ lg: 'sticky' }} top={{ lg: '24px' }}>
+                <VStack gap="5" align="stretch">
+                  <FlightSummary flight={flight} />
+
+                  {/* Submit Button (desktop) */}
+                  {!isLocked && (
+                    <Box display={{ base: 'none', lg: 'block' }}>
+                      <Button
+                        colorPalette="blue"
+                        size="lg"
+                        w="full"
+                        onClick={handleSubmit}
+                        loading={isSubmitting}
+                        disabled={isSubmitting || passengerCount < requiredPassengers}
+                      >
+                        Submit Booking Request
+                      </Button>
+                      <Text fontSize="xs" color="gray.500" mt="2" textAlign="center">
+                        By submitting, you agree to our terms and conditions
+                      </Text>
+                    </Box>
+                  )}
+
+                  {/* View Confirmation Button (when locked) */}
+                  {isLocked && (
+                    <Box display={{ base: 'none', lg: 'block' }}>
+                      <Button
+                        colorPalette="green"
+                        size="lg"
+                        w="full"
+                        onClick={() => router.push('/booking/confirmation')}
+                      >
+                        View Confirmation
+                      </Button>
+                    </Box>
+                  )}
                 </VStack>
               </Box>
             </Box>

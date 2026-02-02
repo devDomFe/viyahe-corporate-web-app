@@ -138,6 +138,7 @@ interface MultiBookingContextValue {
   // Convenience methods for common updates
   setSearchParams: (id: string, params: FlightSearchParams) => void;
   setSelectedFlight: (id: string, flight: FlightOffer) => void;
+  clearSelectedFlight: (id: string) => void;
   setPassengers: (id: string, passengers: BookingPassenger[]) => void;
   setBookingStatus: (id: string, status: DraftBooking['status']) => void;
 }
@@ -203,6 +204,13 @@ export function MultiBookingProvider({ children }: { children: ReactNode }) {
     [updateBooking]
   );
 
+  const clearSelectedFlight = useCallback(
+    (id: string) => {
+      updateBooking(id, { selectedFlight: undefined, status: 'searching', passengers: [] });
+    },
+    [updateBooking]
+  );
+
   const setPassengers = useCallback(
     (id: string, passengers: BookingPassenger[]) => {
       updateBooking(id, { passengers });
@@ -231,6 +239,7 @@ export function MultiBookingProvider({ children }: { children: ReactNode }) {
     removeBooking,
     setSearchParams,
     setSelectedFlight,
+    clearSelectedFlight,
     setPassengers,
     setBookingStatus,
   };

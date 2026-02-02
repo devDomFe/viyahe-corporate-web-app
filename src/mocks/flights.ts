@@ -206,6 +206,7 @@ function generateSlice(
 
 /**
  * Generate mock flight offers based on search parameters
+ * For multi-city, this generates single-leg flights (one slice per offer)
  */
 export function generateMockFlights(params: FlightSearchParams): FlightOffer[] {
   const { origin, destination, departureDate, returnDate, passengers, cabinClass, tripType } =
@@ -218,10 +219,10 @@ export function generateMockFlights(params: FlightSearchParams): FlightOffer[] {
     const stops = [0, 0, 0, 1, 1, 2][Math.floor(Math.random() * 6)]; // More direct flights
     const slices: FlightSlice[] = [];
 
-    // Outbound flight
+    // Single leg flight (outbound)
     slices.push(generateSlice(origin, destination, departureDate, cabinClass, stops, i));
 
-    // Return flight for round trip
+    // Return flight for round trip only (multi-city is handled per-leg)
     if (tripType === 'round_trip' && returnDate) {
       const returnStops = [0, 0, 1, 1][Math.floor(Math.random() * 4)];
       slices.push(
@@ -229,9 +230,13 @@ export function generateMockFlights(params: FlightSearchParams): FlightOffer[] {
       );
     }
 
-    // Calculate pricing
-    const basePricePerPax = generateBasePrice(origin, destination, cabinClass, stops);
-    const totalBase = basePricePerPax * passengers * slices.length;
+    // Calculate pricing based on all slices
+    let totalBase = 0;
+    slices.forEach((slice) => {
+      const sliceBase = generateBasePrice(slice.origin.iataCode, slice.destination.iataCode, cabinClass, slice.stops);
+      totalBase += sliceBase * passengers;
+    });
+
     const taxes = Math.round(totalBase * 0.15); // 15% taxes
     const total = totalBase + taxes;
     const withMarkup = applyMarkup(total);

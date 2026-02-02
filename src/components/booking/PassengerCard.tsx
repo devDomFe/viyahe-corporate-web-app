@@ -14,6 +14,7 @@ interface PassengerCardProps {
   onRemove: () => void;
   errors?: Record<string, string>;
   isInternational?: boolean;
+  isLocked?: boolean;
 }
 
 function getPassengerSummary(data: PassengerFormData): string {
@@ -42,6 +43,7 @@ export function PassengerCard({
   onRemove,
   errors = {},
   isInternational = false,
+  isLocked = false,
 }: PassengerCardProps) {
   const summary = getPassengerSummary(passenger.data);
   const isComplete = hasRequiredFields(passenger.data);
@@ -122,17 +124,19 @@ export function PassengerCard({
 
         {/* Actions */}
         <Flex align="center" gap="2">
-          <Button
-            size="sm"
-            variant="ghost"
-            colorPalette="red"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-          >
-            Remove
-          </Button>
+          {!isLocked && (
+            <Button
+              size="sm"
+              variant="ghost"
+              colorPalette="red"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+            >
+              Remove
+            </Button>
+          )}
           <Box
             transform={isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'}
             transition="transform 0.2s"
@@ -158,6 +162,7 @@ export function PassengerCard({
               onChange={onChange}
               errors={errors}
               isInternational={isInternational}
+              isDisabled={isLocked}
             />
           </Box>
         </Collapsible.Content>
@@ -172,6 +177,7 @@ interface PassengerFormFieldsProps {
   onChange: (data: PassengerFormData) => void;
   errors?: Record<string, string>;
   isInternational?: boolean;
+  isDisabled?: boolean;
 }
 
 import {
@@ -219,6 +225,7 @@ function PassengerFormFields({
   onChange,
   errors = {},
   isInternational = false,
+  isDisabled = false,
 }: PassengerFormFieldsProps) {
   const handleChange = (field: keyof PassengerFormData, value: string) => {
     onChange({ ...data, [field]: value });
@@ -237,6 +244,7 @@ function PassengerFormFields({
             value={data.title ? [data.title] : []}
             onValueChange={(e) => handleChange('title', e.value[0])}
             size="md"
+            disabled={isDisabled}
           >
             <SelectTrigger h="10" px="3">
               <SelectValueText placeholder="Title" />
@@ -274,6 +282,7 @@ function PassengerFormFields({
             placeholder="First name"
             size="md"
             h="10"
+            disabled={isDisabled}
           />
           {errors.firstName && (
             <Text fontSize="xs" color="red.500" mt="1">
@@ -292,6 +301,7 @@ function PassengerFormFields({
             placeholder="Last name"
             size="md"
             h="10"
+            disabled={isDisabled}
           />
           {errors.lastName && (
             <Text fontSize="xs" color="red.500" mt="1">
@@ -310,6 +320,7 @@ function PassengerFormFields({
           <DateOfBirthInput
             value={data.dateOfBirth}
             onChange={(value) => handleChange('dateOfBirth', value)}
+            disabled={isDisabled}
           />
           {errors.dateOfBirth && (
             <Text fontSize="xs" color="red.500" mt="1">
@@ -327,6 +338,7 @@ function PassengerFormFields({
             value={data.gender ? [data.gender] : []}
             onValueChange={(e) => handleChange('gender', e.value[0] as Gender)}
             size="md"
+            disabled={isDisabled}
           >
             <SelectTrigger h="10" px="3">
               <SelectValueText placeholder="Select gender" />
@@ -368,6 +380,7 @@ function PassengerFormFields({
             placeholder="email@example.com"
             size="md"
             h="10"
+            disabled={isDisabled}
           />
           {errors.email && (
             <Text fontSize="xs" color="red.500" mt="1">
@@ -387,6 +400,7 @@ function PassengerFormFields({
             placeholder="+1 (555) 123-4567"
             size="md"
             h="10"
+            disabled={isDisabled}
           />
           {errors.phone && (
             <Text fontSize="xs" color="red.500" mt="1">
@@ -414,6 +428,7 @@ function PassengerFormFields({
                 value={data.documentType ? [data.documentType] : []}
                 onValueChange={(e) => handleChange('documentType', e.value[0] as DocumentType)}
                 size="md"
+                disabled={isDisabled}
               >
                 <SelectTrigger h="10" px="3">
                   <SelectValueText placeholder="Select document" />
@@ -446,6 +461,7 @@ function PassengerFormFields({
                 placeholder="Document number"
                 size="md"
                 h="10"
+                disabled={isDisabled}
               />
             </Box>
           </Flex>
@@ -462,6 +478,7 @@ function PassengerFormFields({
                 maxLength={2}
                 size="md"
                 h="10"
+                disabled={isDisabled}
               />
             </Box>
 
@@ -473,6 +490,7 @@ function PassengerFormFields({
                 value={data.documentExpiryDate}
                 onChange={(value) => handleChange('documentExpiryDate', value)}
                 placeholder="Select expiry date"
+                disabled={isDisabled}
               />
             </Box>
           </Flex>

@@ -77,9 +77,15 @@ interface FlightCardProps {
   isSelected?: boolean;
 }
 
+function getSliceLabel(index: number, totalSlices: number): string | undefined {
+  if (totalSlices === 1) return undefined;
+  if (totalSlices === 2) return index === 0 ? 'Outbound' : 'Return';
+  return `Flight ${index + 1}`;
+}
+
 export function FlightCard({ flight, onSelect, isSelected }: FlightCardProps) {
-  const outboundSlice = flight.slices[0];
-  const returnSlice = flight.slices.length > 1 ? flight.slices[1] : null;
+  // For display, show all slices (round-trip has 2, one-way has 1, multi-city combined has multiple)
+  const slicesToShow = flight.slices;
 
   return (
     <Box
@@ -96,11 +102,13 @@ export function FlightCard({ flight, onSelect, isSelected }: FlightCardProps) {
         {/* Flight Info */}
         <Box flex="1">
           <VStack gap="4" align="stretch">
-            <SliceDisplay
-              slice={outboundSlice}
-              label={returnSlice ? 'Outbound' : undefined}
-            />
-            {returnSlice && <SliceDisplay slice={returnSlice} label="Return" />}
+            {slicesToShow.map((slice, index) => (
+              <SliceDisplay
+                key={slice.id}
+                slice={slice}
+                label={getSliceLabel(index, slicesToShow.length)}
+              />
+            ))}
           </VStack>
         </Box>
 

@@ -1,18 +1,104 @@
 # Viyahe Web App - Development Guidelines
 
+# Claude Instructions
+
+## Environment Setup
+- Start the dev server with `npm run dev`
+- App runs at http://localhost:3000
+
+## Documentation Requirements
+Keep docs/ in sync with all code changes:
+
+- **docs/FEATURES.md** - Update when adding new features
+- **docs/BEHAVIOR.md** - Update when changing expected behaviors
+- **docs/TESTING.md** - Update when modifying tests or verification steps
+- **docs/IMPLEMENTATION.md** - Update when changing architecture or code patterns
+
 ## Project Overview
 
-This is a corporate travel booking web application that enables business users and travel coordinators to search, compare, and book airline tickets with minimal friction. The system integrates with Duffel for flight inventory, pricing, and ticketing.
+This is a B2B flight booking platform with separate client and agent interfaces. The system integrates with Duffel for flight inventory, pricing, and ticketing.
 
 **Purpose**: Enable self-service flight booking for corporate travelers, reducing turnaround time and eliminating the need for travel agents during the search and selection phase.
+
+**System Design**:
+- **Client Interface**: Corporate customers build trips, manage passengers, submit booking requests
+- **Agent Interface**: Agents review, confirm/reject requests, fulfill bookings
+- **Key Concept**: Trip-centric passenger management (passengers belong to trips, NOT individual flights)
 
 **Key Features**:
 - Flight search with multi-city, one-way, and round-trip support
 - Filterable and sortable flight results (price, stops, duration, carriers)
-- Passenger information capture with booking requests
+- Trip-based passenger management
+- Booking request workflow with agent review
 - Automated price markup system
 - Agent notification system for booking review
 - Invoice generation and itinerary export
+
+## Trip Status Rules (CRITICAL)
+
+| Status | Description | Allowed Actions |
+|--------|-------------|-----------------|
+| `IN_PROGRESS` | Trip being built | Full editing (add/delete flights, manage passengers) |
+| `BOOKING_REQUESTED` | Submitted for review | **LOCKED** - no trip edits, negotiation happens off-platform |
+| `CONFIRMED` | Agent approved | Client can request changes via support only |
+| `FULFILLED` | Complete | All documents uploaded, read-only |
+| `REJECTED` | Denied | Optional rejection reason provided |
+
+## Passenger Management (CRITICAL UX RULE)
+
+**ALWAYS ENFORCE**: Passengers are managed ONLY at the trip level.
+
+- Flights inherit passengers from their parent trip
+- No passenger data stored on individual flights
+- All passenger entry points must redirect to "Trip Overview → Passengers"
+- Show message: "Passengers are managed at the trip level"
+
+## Booking Request Validation
+
+Before allowing `BOOKING_REQUESTED` status:
+- ✅ Trip must have ≥1 passenger
+- ✅ All passenger details must be complete
+- ✅ Trip must have ≥1 flight
+
+## Feature Implementation Status
+
+### ✅ Implemented - Client Features
+- Flight search with fare display
+- Add flight to trip
+- Remove flight from trip (via FlightSummary X button, when status allows)
+- Basic trip creation
+- Multi-booking sidebar for managing concurrent trips
+- Booking request submission with automatic status transition to 'submitted'
+- Trip locking when submitted (all edit controls disabled)
+- Saved travelers CRUD at /passengers page
+- "Add to Trip" from saved travelers sidebar
+- Passenger management at trip level
+- Validation before booking submission
+- **Multi-city per-leg flight selection** - Each leg selected individually with auto-advance, combined at booking
+
+### 🔲 To Implement - Agent Features
+
+**Task #5: Implement agent booking request review** [PENDING]
+- Create `/agent` dashboard page
+- List all trips with status `BOOKING_REQUESTED`
+- Show trip details: flights, passengers, total price
+- Display booking request timestamp
+
+**Task #6: Implement confirm/reject booking requests** [BLOCKED BY #5]
+- Add "Confirm" and "Reject" buttons to agent review
+- Confirm → status changes to `CONFIRMED`
+- Reject → status changes to `REJECTED`, prompt for optional reason
+- Show rejection reason to client on their trip view
+
+**Task #7: Implement document upload for agents** [PENDING]
+- Add file upload UI for itinerary PDF and e-tickets
+- Store document references in trip data
+- Documents visible to client after upload
+
+**Task #8: Mark trip as fulfilled** [BLOCKED BY #6, #7]
+- Add "Mark as Fulfilled" button (only when status=CONFIRMED and documents uploaded)
+- Status changes to `FULFILLED`
+- Trip becomes fully read-only for all parties
 
 ## Tech Stack
 

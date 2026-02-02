@@ -139,6 +139,12 @@ function AirportInput({ label, value, onChange, placeholder }: AirportInputProps
   );
 }
 
+interface MultiCityLeg {
+  origin: string;
+  destination: string;
+  date: string;
+}
+
 export function SearchForm() {
   const router = useRouter();
   const { activeBookingId, createBooking, setSearchParams: setBookingSearchParams } = useMultiBooking();
@@ -151,6 +157,26 @@ export function SearchForm() {
   const [cabinClass, setCabinClass] = useState<CabinClass>('economy');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Multi-city legs (first leg uses origin/destination/departureDate, additional legs stored here)
+  const [additionalLegs, setAdditionalLegs] = useState<MultiCityLeg[]>([]);
+
+  const addLeg = () => {
+    const lastLeg = additionalLegs.length > 0
+      ? additionalLegs[additionalLegs.length - 1]
+      : { origin, destination, date: departureDate };
+    setAdditionalLegs([...additionalLegs, { origin: lastLeg.destination, destination: '', date: '' }]);
+  };
+
+  const removeLeg = (index: number) => {
+    setAdditionalLegs(additionalLegs.filter((_, i) => i !== index));
+  };
+
+  const updateLeg = (index: number, field: keyof MultiCityLeg, value: string) => {
+    setAdditionalLegs(additionalLegs.map((leg, i) =>
+      i === index ? { ...leg, [field]: value } : leg
+    ));
+  };
+
   const handleSearch = () => {
     if (!origin || !destination || !departureDate) {
       return;
@@ -158,6 +184,15 @@ export function SearchForm() {
 
     if (tripType === 'round_trip' && !returnDate) {
       return;
+    }
+
+    // Validate multi-city legs
+    if (tripType === 'multi_city') {
+      for (const leg of additionalLegs) {
+        if (!leg.origin || !leg.destination || !leg.date) {
+          return;
+        }
+      }
     }
 
     setIsLoading(true);
@@ -170,6 +205,7 @@ export function SearchForm() {
       returnDate: tripType === 'round_trip' ? returnDate : undefined,
       passengers: parseInt(passengers),
       cabinClass,
+      additionalLegs: tripType === 'multi_city' && additionalLegs.length > 0 ? additionalLegs : undefined,
     };
 
     // Ensure we have an active booking
@@ -181,7 +217,7 @@ export function SearchForm() {
     // Update the booking with search params
     setBookingSearchParams(bookingId, params);
 
-    const searchParams = new URLSearchParams({
+    const urlSearchParams = new URLSearchParams({
       tripType: params.tripType,
       origin: params.origin,
       destination: params.destination,
@@ -191,10 +227,14 @@ export function SearchForm() {
     });
 
     if (params.returnDate) {
-      searchParams.set('returnDate', params.returnDate);
+      urlSearchParams.set('returnDate', params.returnDate);
     }
 
-    router.push(`/flights?${searchParams.toString()}`);
+    if (params.additionalLegs && params.additionalLegs.length > 0) {
+      urlSearchParams.set('additionalLegs', JSON.stringify(params.additionalLegs));
+    }
+
+    router.push(`/flights?${urlSearchParams.toString()}`);
   };
 
   // Get tomorrow's date as minimum
@@ -276,6 +316,68 @@ export function SearchForm() {
             </Box>
           )}
         </Flex>
+
+        {/* Multi-City Additional Legs */}
+        {tripType === 'multi_city' && (
+          <VStack gap="4" align="stretch">
+            {additionalLegs.map((leg, index) => (
+              <Box
+                key={index}
+                p="4"
+                bg="gray.50"
+                borderRadius="md"
+                border="1px solid"
+                borderColor="gray.200"
+              >
+                <Flex justify="space-between" align="center" mb="3">
+                  <Text fontWeight="medium" fontSize="sm" color="gray.700">
+                    Flight {index + 2}
+                  </Text>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    colorPalette="red"
+                    onClick={() => removeLeg(index)}
+                  >
+                    Remove
+                  </Button>
+                </Flex>
+                <Flex gap={{ base: '3', md: '4' }} direction={{ base: 'column', md: 'row' }}>
+                  <AirportInput
+                    label="From"
+                    value={leg.origin}
+                    onChange={(code) => updateLeg(index, 'origin', code)}
+                    placeholder="City or airport"
+                  />
+                  <AirportInput
+                    label="To"
+                    value={leg.destination}
+                    onChange={(code) => updateLeg(index, 'destination', code)}
+                    placeholder="City or airport"
+                  />
+                  <Box flex="1">
+                    <Text fontSize="sm" fontWeight="medium" mb="1" color="gray.700">
+                      Date
+                    </Text>
+                    <DatePicker
+                      value={leg.date}
+                      onChange={(date) => updateLeg(index, 'date', date)}
+                      minDate={index === 0 ? departureDate || minDate : additionalLegs[index - 1]?.date || minDate}
+                      placeholder="Select date"
+                    />
+                  </Box>
+                </Flex>
+              </Box>
+            ))}
+            <Button
+              variant="outline"
+              onClick={addLeg}
+              alignSelf="flex-start"
+            >
+              + Add Another Flight
+            </Button>
+          </VStack>
+        )}
 
         {/* Passengers & Class */}
         <Flex gap={{ base: '4', md: '6' }} direction={{ base: 'column', md: 'row' }}>
