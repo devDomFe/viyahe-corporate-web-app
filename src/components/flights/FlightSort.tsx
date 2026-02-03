@@ -1,24 +1,24 @@
-'use client';
+"use client";
 
-import { Flex, Text, createListCollection } from '@chakra-ui/react';
+import { Flex, Text, createListCollection } from "@chakra-ui/react";
 import {
   SelectRoot,
   SelectTrigger,
   SelectValueText,
   SelectContent,
   SelectItem,
-} from '@chakra-ui/react/select';
-import type { FlightSortOption } from '@/types/flight';
+} from "@chakra-ui/react/select";
+import type { FlightSortOption } from "@/types/flight";
 
 const sortOptions = createListCollection({
   items: [
-    { value: 'best_value', label: 'Best Value' },
-    { value: 'price_low', label: 'Price: Low to High' },
-    { value: 'price_high', label: 'Price: High to Low' },
-    { value: 'duration_short', label: 'Duration: Shortest' },
-    { value: 'duration_long', label: 'Duration: Longest' },
-    { value: 'departure_early', label: 'Departure: Earliest' },
-    { value: 'departure_late', label: 'Departure: Latest' },
+    { value: "best_value", label: "Best Value" },
+    { value: "price_low", label: "Price: Low to High" },
+    { value: "price_high", label: "Price: High to Low" },
+    { value: "duration_short", label: "Duration: Shortest" },
+    { value: "duration_long", label: "Duration: Longest" },
+    { value: "departure_early", label: "Departure: Earliest" },
+    { value: "departure_late", label: "Departure: Latest" },
   ],
 });
 
@@ -34,8 +34,8 @@ export function FlightSort({ value, onChange, resultCount }: FlightSortProps) {
       <Text color="gray.600">
         <Text as="span" fontWeight="bold">
           {resultCount}
-        </Text>{' '}
-        {resultCount === 1 ? 'flight' : 'flights'} found
+        </Text>{" "}
+        {resultCount === 1 ? "flight" : "flights"} found
       </Text>
 
       <Flex align="center" gap="2">

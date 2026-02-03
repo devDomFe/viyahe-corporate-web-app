@@ -1,5 +1,6 @@
 import type { FlightOffer, FlightSearchParams } from './flight';
 import type { BookingPassenger } from './saved-passenger';
+import type { BookingStatus } from './booking';
 
 /**
  * Status of a draft booking in the multi-booking flow
@@ -19,6 +20,10 @@ export interface DraftBooking {
   specialRequests?: string;
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
+  /** Server booking ID after submission - used to fetch real-time status from server */
+  serverBookingId?: string;
+  /** Server-side booking status - fetched from API after submission */
+  serverStatus?: BookingStatus;
 }
 
 /**

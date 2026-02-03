@@ -2,13 +2,33 @@ import type { FlightOffer, FlightSearchParams } from './flight';
 import type { Passenger } from './passenger';
 
 /**
- * Booking status
+ * Booking status - aligned with CLAUDE.md Trip Status Rules
  */
 export type BookingStatus =
-  | 'pending' // Submitted, awaiting agent review
-  | 'confirmed' // Agent confirmed, ticket issued
-  | 'cancelled' // Booking cancelled
-  | 'expired'; // Offer expired before confirmation
+  | 'BOOKING_REQUESTED' // Submitted, awaiting agent review (locked for client)
+  | 'CONFIRMED'         // Agent approved
+  | 'REJECTED'          // Agent denied
+  | 'FULFILLED';        // Complete with documents uploaded
+
+/**
+ * Document types that agents can upload
+ */
+export type BookingDocumentType = 'itinerary' | 'e_ticket' | 'invoice' | 'other';
+
+/**
+ * Uploaded document reference
+ */
+export interface BookingDocument {
+  id: string;
+  bookingId: string;
+  type: BookingDocumentType;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  dataUrl: string; // base64 data URL for mock storage
+  uploadedAt: string; // ISO 8601
+  uploadedBy: string; // Agent ID
+}
 
 /**
  * Booking request submitted by user
@@ -40,10 +60,20 @@ export interface Booking {
   confirmationNumber?: string; // PNR from airline
   ticketNumbers?: string[];
   agentNotes?: string;
+  rejectionReason?: string; // Reason when status is REJECTED
+  agentId?: string; // ID of agent who processed
   createdAt: string;
   updatedAt: string;
   confirmedAt?: string;
-  cancelledAt?: string;
+  rejectedAt?: string;
+  fulfilledAt?: string;
+}
+
+/**
+ * Booking with documents attached (for agent view)
+ */
+export interface BookingWithDocuments extends Booking {
+  documents: BookingDocument[];
 }
 
 /**

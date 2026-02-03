@@ -21,13 +21,13 @@ import {
   PassengerCard,
   SavePassengerModal,
 } from '@/components/booking';
-import type { FlightOffer, FlightSearchParams } from '@/types/flight';
 import type { Passenger, PassengerFormData } from '@/types/passenger';
-import type { AgentNotification, Booking, BookingRequest } from '@/types/booking';
 import { useSavedPassengers } from '@/hooks/useSavedPassengers';
 import { useBookingPassengers } from '@/hooks/useBookingPassengers';
 import { useMultiBooking } from '@/hooks/useMultiBooking';
 import { formDataToSavedPassenger } from '@/types/saved-passenger';
+import { saveBooking, generateBookingId } from '@/lib/bookings/localStorage';
+import type { BookingWithDocuments, BookingRequest } from '@/types/booking';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 15);
@@ -41,6 +41,7 @@ export default function BookingPage() {
     setBookingStatus,
     removeBooking,
     setPassengers: setContextPassengers,
+    updateBooking,
   } = useMultiBooking();
 
   // Get flight and searchParams from context
@@ -54,9 +55,9 @@ export default function BookingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form extras state
-  const [discountCode, setDiscountCode] = useState('');
-  const [specialRequests, setSpecialRequests] = useState('');
+  // Form extras state - initialize from activeBooking
+  const [discountCode, setDiscountCode] = useState(activeBooking?.discountCode ?? '');
+  const [specialRequests, setSpecialRequests] = useState(activeBooking?.specialRequests ?? '');
 
   // Mobile sidebar state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -74,7 +75,7 @@ export default function BookingPage() {
     bulkCreatePassengers,
   } = useSavedPassengers();
 
-  // Booking passengers hook
+  // Booking passengers hook - initialize with passengers from active booking
   const {
     passengers,
     addFromSaved,
@@ -88,7 +89,15 @@ export default function BookingPage() {
     getSavedPassengerIds,
     getNewPassengersToSave,
     passengerCount,
-  } = useBookingPassengers(0);
+  } = useBookingPassengers(activeBooking?.passengers ?? []);
+
+  // Sync form state when switching to a different booking
+  useEffect(() => {
+    setDiscountCode(activeBooking?.discountCode ?? '');
+    setSpecialRequests(activeBooking?.specialRequests ?? '');
+    setError(null);
+    setIsLoading(true);
+  }, [activeBookingId]); // Only re-run when activeBookingId changes
 
   // Check if we have a valid booking from context
   useEffect(() => {
@@ -118,6 +127,19 @@ export default function BookingPage() {
       setContextPassengers(activeBookingId, passengers);
     }
   }, [activeBookingId, passengers, setContextPassengers]);
+
+  // Sync discount code and special requests to context
+  useEffect(() => {
+    if (activeBookingId) {
+      updateBooking(activeBookingId, { discountCode: discountCode || undefined });
+    }
+  }, [activeBookingId, discountCode, updateBooking]);
+
+  useEffect(() => {
+    if (activeBookingId) {
+      updateBooking(activeBookingId, { specialRequests: specialRequests || undefined });
+    }
+  }, [activeBookingId, specialRequests, updateBooking]);
 
   // Get IDs of saved passengers that have been added to booking
   const addedSavedPassengerIds = getSavedPassengerIds();
@@ -181,6 +203,9 @@ export default function BookingPage() {
       }));
 
       // Create booking request
+      const bookingId = generateBookingId();
+      const now = new Date().toISOString();
+
       const bookingRequest: BookingRequest = {
         id: generateId(),
         flightOffer: flight,
@@ -190,57 +215,36 @@ export default function BookingPage() {
         specialRequests: specialRequests || undefined,
         contactEmail: passengers[0].data.email,
         contactPhone: passengers[0].data.phone,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
       };
 
-      // Create booking record
-      const booking: Booking = {
-        id: generateId(),
+      // Create the full booking object
+      const newBooking: BookingWithDocuments = {
+        id: bookingId,
         request: bookingRequest,
-        status: 'pending',
+        status: 'BOOKING_REQUESTED',
         originalPrice: flight.totalPrice.amount,
         finalPrice: flight.priceWithMarkup.amount,
         currency: flight.priceWithMarkup.currency,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
+        documents: [],
       };
 
-      // Create agent notification
-      const notification: AgentNotification = {
-        bookingId: booking.id,
-        type: 'new_booking',
-        timestamp: new Date().toISOString(),
-        booking: {
-          flightDetails: {
-            origin: searchParams.origin,
-            destination: searchParams.destination,
-            departureDate: searchParams.departureDate,
-            returnDate: searchParams.returnDate,
-            tripType: searchParams.tripType,
-            cabinClass: searchParams.cabinClass,
-          },
-          passengers: passengerList.map((p) => ({
-            name: `${p.title} ${p.firstName} ${p.lastName}`,
-            email: p.email,
-            phone: p.phone,
-          })),
-          pricing: {
-            originalAmount: flight.totalPrice.amount,
-            markedUpAmount: flight.priceWithMarkup.amount,
-            currency: flight.priceWithMarkup.currency,
-          },
-          specialRequests: specialRequests || undefined,
-          discountCode: discountCode || undefined,
-        },
-      };
+      // Save booking to localStorage
+      saveBooking(newBooking);
 
       // Store booking data for confirmation page
-      sessionStorage.setItem('booking', JSON.stringify(booking));
-      sessionStorage.setItem('notification', JSON.stringify(notification));
+      sessionStorage.setItem('bookingId', bookingId);
+      sessionStorage.setItem('booking', JSON.stringify(newBooking));
 
-      // Update booking status to submitted
+      // Update draft booking status to submitted and store booking ID
       if (activeBookingId) {
-        setBookingStatus(activeBookingId, 'submitted');
+        updateBooking(activeBookingId, {
+          status: 'submitted',
+          serverBookingId: bookingId,
+          serverStatus: 'BOOKING_REQUESTED',
+        });
       }
 
       // Check if there are new passengers to save

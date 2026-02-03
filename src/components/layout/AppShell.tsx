@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { Box, Flex, IconButton, Text } from '@chakra-ui/react';
 import {
   DrawerRoot,
@@ -21,6 +22,15 @@ const SIDEBAR_WIDTH = '280px';
 export function AppShell({ children }: AppShellProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { bookings } = useMultiBooking();
+  const pathname = usePathname();
+
+  // Hide sidebar on agent routes
+  const isAgentRoute = pathname?.startsWith('/agent');
+
+  // If on agent route, render without sidebar
+  if (isAgentRoute) {
+    return <Box minH="100vh">{children}</Box>;
+  }
 
   return (
     <Flex minH="100vh">

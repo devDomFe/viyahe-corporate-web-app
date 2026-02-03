@@ -3,6 +3,7 @@
 import { Box, Flex, Text, Badge, IconButton, VStack, HStack } from '@chakra-ui/react';
 import type { DraftBooking } from '@/types/multi-booking';
 import { getBookingDisplayLabel, getBookingDisplayDate } from '@/types/multi-booking';
+import type { BookingStatus } from '@/types/booking';
 
 interface BookingCardProps {
   booking: DraftBooking;
@@ -11,12 +12,20 @@ interface BookingCardProps {
   onRemove: () => void;
 }
 
-const statusConfig: Record<string, { label: string; colorPalette: string }> = {
+// Local draft status config
+const localStatusConfig: Record<string, { label: string; colorPalette: string }> = {
   searching: { label: 'Searching', colorPalette: 'gray' },
   selecting: { label: 'Selecting', colorPalette: 'blue' },
   filling: { label: 'Filling', colorPalette: 'yellow' },
   ready: { label: 'Ready', colorPalette: 'green' },
-  submitted: { label: 'Submitted', colorPalette: 'green' },
+};
+
+// Server status config (for submitted bookings)
+const serverStatusConfig: Record<BookingStatus, { label: string; colorPalette: string }> = {
+  BOOKING_REQUESTED: { label: 'Pending', colorPalette: 'yellow' },
+  CONFIRMED: { label: 'Confirmed', colorPalette: 'green' },
+  REJECTED: { label: 'Rejected', colorPalette: 'red' },
+  FULFILLED: { label: 'Fulfilled', colorPalette: 'blue' },
 };
 
 function getPassengerNames(booking: DraftBooking): string | null {
@@ -41,10 +50,24 @@ export function BookingCard({ booking, isActive, onSelect, onRemove }: BookingCa
   const requiredPassengers = booking.searchParams?.passengers || 1;
   const passengerNames = getPassengerNames(booking);
 
-  // Determine display status - show "Ready" when all passengers are added
-  const displayStatus =
-    booking.status === 'filling' && passengerCount >= requiredPassengers ? 'ready' : booking.status;
-  const statusInfo = statusConfig[displayStatus];
+  // Determine display status based on local or server status
+  const getStatusInfo = (): { label: string; colorPalette: string } => {
+    if (booking.status === 'submitted') {
+      // For submitted bookings, use server status
+      if (booking.serverStatus) {
+        return serverStatusConfig[booking.serverStatus];
+      }
+      // Fallback if server status not yet fetched
+      return { label: 'Pending', colorPalette: 'yellow' };
+    }
+
+    // For local draft statuses, show "Ready" when all passengers are added
+    const displayStatus =
+      booking.status === 'filling' && passengerCount >= requiredPassengers ? 'ready' : booking.status;
+    return localStatusConfig[displayStatus] || { label: 'Unknown', colorPalette: 'gray' };
+  };
+
+  const statusInfo = getStatusInfo();
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();

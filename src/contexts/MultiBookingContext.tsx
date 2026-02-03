@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useReducer, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, useCallback, useRef, useState, type ReactNode } from 'react';
 import type {
   DraftBooking,
   MultiBookingState,
@@ -151,43 +151,48 @@ const MultiBookingContext = createContext<MultiBookingContextValue | null>(null)
 export function MultiBookingProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(multiBookingReducer, initialState);
 
+  // Track whether initial load from localStorage has completed
+  const [hasLoaded, setHasLoaded] = useState(false);
+
   // Load from localStorage on mount
   useEffect(() => {
     const stored = loadFromStorage();
     if (stored) {
       dispatch({ type: 'LOAD_FROM_STORAGE', payload: stored });
     }
+    // Mark as loaded after attempting to load (even if nothing was found)
+    setHasLoaded(true);
   }, []);
 
-  // Ref to hold latest state for synchronous saves
-  const stateRef = useRef(state);
-  stateRef.current = state;
+  // Save to localStorage whenever state changes (but only after initial load)
+  useEffect(() => {
+    if (hasLoaded) {
+      saveToStorage(state);
+    }
+  }, [state, hasLoaded]);
 
-  // Custom dispatch that saves to localStorage immediately after dispatch
-  const dispatchAndSave = useCallback((action: MultiBookingAction) => {
+  // Simple dispatch wrapper - saving is now handled by the effect above
+  const dispatchAction = useCallback((action: MultiBookingAction) => {
     dispatch(action);
-    // Compute new state and save immediately (for navigation-sensitive operations)
-    const newState = multiBookingReducer(stateRef.current, action);
-    saveToStorage(newState);
   }, []);
 
   const createBooking = useCallback(() => {
     const id = generateBookingId();
-    dispatchAndSave({ type: 'CREATE_BOOKING', payload: { id } });
+    dispatchAction({ type: 'CREATE_BOOKING', payload: { id } });
     return id;
-  }, [dispatchAndSave]);
+  }, [dispatchAction]);
 
   const updateBooking = useCallback((id: string, updates: Partial<DraftBooking>) => {
-    dispatchAndSave({ type: 'UPDATE_BOOKING', payload: { id, updates } });
-  }, [dispatchAndSave]);
+    dispatchAction({ type: 'UPDATE_BOOKING', payload: { id, updates } });
+  }, [dispatchAction]);
 
   const setActiveBooking = useCallback((id: string | null) => {
-    dispatchAndSave({ type: 'SET_ACTIVE', payload: { id } });
-  }, [dispatchAndSave]);
+    dispatchAction({ type: 'SET_ACTIVE', payload: { id } });
+  }, [dispatchAction]);
 
   const removeBooking = useCallback((id: string) => {
-    dispatchAndSave({ type: 'REMOVE_BOOKING', payload: { id } });
-  }, [dispatchAndSave]);
+    dispatchAction({ type: 'REMOVE_BOOKING', payload: { id } });
+  }, [dispatchAction]);
 
   // Convenience methods
   const setSearchParams = useCallback(
@@ -199,7 +204,8 @@ export function MultiBookingProvider({ children }: { children: ReactNode }) {
 
   const setSelectedFlight = useCallback(
     (id: string, flight: FlightOffer) => {
-      updateBooking(id, { selectedFlight: flight, status: 'selecting' });
+      // Clear passengers when selecting a new flight to avoid stale data
+      updateBooking(id, { selectedFlight: flight, status: 'filling', passengers: [] });
     },
     [updateBooking]
   );

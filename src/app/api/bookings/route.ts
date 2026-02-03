@@ -1,10 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { BookingRequest, Booking, AgentNotification } from '@/types/booking';
+import type { BookingRequest, AgentNotification, BookingStatus } from '@/types/booking';
+import { getBookingClient } from '@/lib/bookings';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 15);
 }
 
+/**
+ * GET /api/bookings
+ * List all bookings with optional status filter
+ * Query params: status (optional)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // TODO: Add authentication check for agents
+
+    const searchParams = request.nextUrl.searchParams;
+    const status = searchParams.get('status') as BookingStatus | null;
+
+    const client = getBookingClient();
+    const bookings = await client.list(status ? { status } : undefined);
+
+    return NextResponse.json({ bookings });
+  } catch (error) {
+    console.error('Failed to list bookings:', error);
+    return NextResponse.json(
+      { error: 'Failed to list bookings' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/bookings
+ * Create a new booking
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -45,17 +75,14 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    // Create booking record
-    const booking: Booking = {
-      id: generateId(),
+    // Create booking using the client (persists to mock storage)
+    const client = getBookingClient();
+    const booking = await client.create({
       request: bookingRequest,
-      status: 'pending',
       originalPrice: flightOffer.totalPrice.amount,
       finalPrice: flightOffer.priceWithMarkup.amount,
       currency: flightOffer.priceWithMarkup.currency,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    });
 
     // Create agent notification
     const notification: AgentNotification = {
@@ -86,15 +113,7 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // TODO: In production:
-    // 1. Save booking to database
-    // 2. Send notification to agents (email/webhook)
-    // 3. Send confirmation email to customer
-
-    // For now, we just return the booking data
-    // In the future, this would be stored in Supabase
     console.log('New booking created:', booking.id);
-    console.log('Agent notification:', JSON.stringify(notification, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -110,14 +129,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-export async function GET(request: NextRequest) {
-  // TODO: Implement booking retrieval
-  // This would require authentication and would fetch from database
-
-  return NextResponse.json(
-    { error: 'Booking retrieval not yet implemented' },
-    { status: 501 }
-  );
 }

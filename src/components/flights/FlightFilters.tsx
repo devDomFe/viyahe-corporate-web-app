@@ -1,10 +1,18 @@
-'use client';
+"use client";
 
-import { Box, Button, Flex, Heading, Text, VStack, HStack } from '@chakra-ui/react';
-import { Checkbox } from '@chakra-ui/react/checkbox';
-import { Slider } from '@chakra-ui/react/slider';
-import type { FlightFilters as Filters, Airline } from '@/types/flight';
-import { formatCurrency, formatDuration } from '@/utils/format';
+import {
+  Box,
+  Button,
+  Flex,
+  Heading,
+  Text,
+  VStack,
+  HStack,
+} from "@chakra-ui/react";
+import { Checkbox } from "@chakra-ui/react/checkbox";
+import { Slider } from "@chakra-ui/react/slider";
+import type { FlightFilters as Filters, Airline } from "@/types/flight";
+import { formatCurrency, formatDuration } from "@/utils/format";
 
 interface FlightFiltersProps {
   filters: Filters;
@@ -38,7 +46,10 @@ export function FlightFilters({
     const newAirlines = checked
       ? [...currentAirlines, airlineCode]
       : currentAirlines.filter((code) => code !== airlineCode);
-    onFiltersChange({ ...filters, airlines: newAirlines.length > 0 ? newAirlines : undefined });
+    onFiltersChange({
+      ...filters,
+      airlines: newAirlines.length > 0 ? newAirlines : undefined,
+    });
   };
 
   const handleClearFilters = () => {
@@ -52,7 +63,15 @@ export function FlightFilters({
     (filters.airlines && filters.airlines.length > 0);
 
   return (
-    <Box bg="white" borderRadius="lg" boxShadow="sm" p={{ base: '5', md: '6' }}>
+    <Box
+      h="70vh"
+      bg="white"
+      borderRadius="lg"
+      boxShadow="sm"
+      p={{ base: "5", md: "6" }}
+      display="flex"
+      flexDirection="column"
+    >
       <Flex justify="space-between" align="center" mb="4">
         <Heading size="md">Filters</Heading>
         {hasActiveFilters && (
@@ -62,7 +81,7 @@ export function FlightFilters({
         )}
       </Flex>
 
-      <VStack gap="6" align="stretch">
+      <VStack gap="6" align="stretch" flex="1" minH="0">
         {/* Stops */}
         <Box>
           <Text fontWeight="medium" mb="2">
@@ -70,20 +89,26 @@ export function FlightFilters({
           </Text>
           <HStack gap="2" flexWrap="wrap">
             {[
-              { value: -1, label: 'Any' },
-              { value: 0, label: 'Direct' },
-              { value: 1, label: '1 stop' },
-              { value: 2, label: '2+ stops' },
+              { value: -1, label: "Any" },
+              { value: 0, label: "Direct" },
+              { value: 1, label: "1 stop" },
+              { value: 2, label: "2+ stops" },
             ].map((option) => (
               <Button
                 key={option.value}
                 size="sm"
                 px="4"
                 py="2"
-                variant={filters.maxStops === option.value ? 'solid' : 'outline'}
-                colorPalette={filters.maxStops === option.value ? 'blue' : 'gray'}
+                variant={
+                  filters.maxStops === option.value ? "solid" : "outline"
+                }
+                colorPalette={
+                  filters.maxStops === option.value ? "blue" : "gray"
+                }
                 onClick={() =>
-                  handleStopsChange(option.value === filters.maxStops ? -1 : option.value)
+                  handleStopsChange(
+                    option.value === filters.maxStops ? -1 : option.value,
+                  )
                 }
               >
                 {option.label}
@@ -146,11 +171,12 @@ export function FlightFilters({
 
         {/* Airlines */}
         {availableAirlines.length > 0 && (
-          <Box>
+          <Box flex="1" minH="0" display="flex" flexDirection="column">
             <Text fontWeight="medium" mb="2">
               Airlines
             </Text>
-            <VStack gap="2" align="stretch">
+
+            <VStack gap="2" align="stretch" flex="1" minH="0" overflowY="auto">
               {availableAirlines.map((airline) => (
                 <Checkbox.Root
                   key={airline.iataCode}

@@ -34,6 +34,16 @@ This is a B2B flight booking platform with separate client and agent interfaces.
 - Agent notification system for booking review
 - Invoice generation and itinerary export
 
+## Data Consistency (CRITICAL)
+
+**ALWAYS ENFORCE**: Agent interface uses ONLY data submitted via client interface.
+
+- No pre-seeded or placeholder bookings in the system
+- Agent dashboard shows empty state until client submits bookings
+- All bookings flow: Client submits → API stores → Agent reviews
+- Agent actions (confirm/reject/fulfill) reflect in real-time on client side
+- Single source of truth via MockBookingClient singleton pattern
+
 ## Trip Status Rules (CRITICAL)
 
 | Status | Description | Allowed Actions |
@@ -75,30 +85,38 @@ Before allowing `BOOKING_REQUESTED` status:
 - Passenger management at trip level
 - Validation before booking submission
 - **Multi-city per-leg flight selection** - Each leg selected individually with auto-advance, combined at booking
+- **Booking status display** - Client confirmation page shows real-time booking status (Pending, Confirmed, Rejected, Fulfilled)
+- **Document download** - Clients can download documents (e-tickets, itinerary) when booking is fulfilled
 
-### 🔲 To Implement - Agent Features
+### ✅ Implemented - Agent Features
 
-**Task #5: Implement agent booking request review** [PENDING]
-- Create `/agent` dashboard page
-- List all trips with status `BOOKING_REQUESTED`
-- Show trip details: flights, passengers, total price
+**Task #5: Agent booking request review** [COMPLETE]
+- `/agent` dashboard page at http://localhost:3000/agent
+- List all bookings with filterable status tabs (All, Pending, Confirmed, Rejected, Fulfilled)
+- Show booking details: route, passengers, total price, special requests
 - Display booking request timestamp
+- Status counts displayed on each tab
 
-**Task #6: Implement confirm/reject booking requests** [BLOCKED BY #5]
-- Add "Confirm" and "Reject" buttons to agent review
-- Confirm → status changes to `CONFIRMED`
-- Reject → status changes to `REJECTED`, prompt for optional reason
-- Show rejection reason to client on their trip view
+**Task #6: Confirm/reject booking requests** [COMPLETE]
+- "Confirm" and "Reject" buttons with confirmation modals
+- Confirm → status changes to `CONFIRMED`, optional agent notes
+- Reject → status changes to `REJECTED`, optional rejection reason
+- Rejection reason displayed to client on their confirmation page
 
-**Task #7: Implement document upload for agents** [PENDING]
-- Add file upload UI for itinerary PDF and e-tickets
-- Store document references in trip data
-- Documents visible to client after upload
+**Task #7: Document upload for agents** [COMPLETE]
+- Document upload modal with file type selection (Itinerary, E-Ticket, Invoice, Other)
+- File validation: PDF, JPEG, PNG only, max 5MB
+- Documents stored with base64 encoding (mock mode)
+- Document list with show/hide toggle on booking cards
+- Download and delete functionality for uploaded documents
+- Only available for CONFIRMED bookings
 
-**Task #8: Mark trip as fulfilled** [BLOCKED BY #6, #7]
-- Add "Mark as Fulfilled" button (only when status=CONFIRMED and documents uploaded)
+**Task #8: Mark trip as fulfilled** [COMPLETE]
+- "Mark as Fulfilled" button with confirmation modal
+- Only visible when status=CONFIRMED AND at least one document uploaded
 - Status changes to `FULFILLED`
 - Trip becomes fully read-only for all parties
+- Client can view and download all documents
 
 ## Tech Stack
 

@@ -57,19 +57,50 @@ Agents review, confirm/reject requests, and fulfill bookings.
 - Display of final price after markup
 - Agent notification JSON on booking submission
 
-## Features To Implement
+### Booking Status Tracking
+- Real-time status display on client confirmation page
+- Status polling for pending bookings (auto-refresh every 10 seconds)
+- Visual status badges: Pending Review, Confirmed, Rejected, Fulfilled
+- Rejection reason display for rejected bookings
+- Document download access for fulfilled bookings
 
-### Agent Features
+## Agent Features (Implemented)
 
-#### Booking Request Review
-- View pending booking requests
-- Review trip and passenger details
-- Confirm or reject requests with optional reason
+### Agent Dashboard (`/agent`)
+- Dedicated agent dashboard for booking management
+- Status filter tabs: All, Pending, Confirmed, Rejected, Fulfilled
+- Booking count badges on each status tab
+- Booking cards with route, passengers, pricing, and timestamps
+- Special requests display
+- Back to Client View navigation
 
-#### Fulfillment
-- Upload itinerary documents
-- Upload tickets
-- Mark trips as fulfilled
+### Booking Request Review
+- View all pending booking requests
+- Review trip details: flights, passengers, total price
+- Review special requests and discount codes
+- Booking timestamp display
+
+### Confirm/Reject Actions
+- Confirm booking with optional agent notes
+- Reject booking with optional rejection reason
+- Confirmation modals for both actions
+- Automatic status update and list refresh
+
+### Document Management
+- Upload documents for confirmed bookings
+- Document types: Itinerary, E-Ticket, Invoice, Other
+- File validation: PDF, JPEG, PNG only, max 5MB
+- Document list with type badges and file info
+- Download documents directly
+- Delete documents (before fulfillment)
+- Show/hide toggle for document list
+
+### Fulfillment
+- Mark as Fulfilled button (requires at least one document)
+- Fulfillment confirmation modal with summary
+- Status changes to FULFILLED
+- Documents become available to client
+- Booking becomes read-only
 
 ## Planned Features (Post-MVP)
 - Seat selection upsell

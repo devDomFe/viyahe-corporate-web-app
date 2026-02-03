@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box,
@@ -67,6 +67,22 @@ function AirportInput({ label, value, onChange, placeholder }: AirportInputProps
   const [query, setQuery] = useState(value);
   const [suggestions, setSuggestions] = useState<Airport[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Sync query with external value changes (e.g., when switching bookings)
+  useEffect(() => {
+    if (value) {
+      // Try to find the airport to show city name
+      const airports = searchAirports(value);
+      const airport = airports.find(a => a.iataCode === value);
+      if (airport) {
+        setQuery(`${airport.city} (${airport.iataCode})`);
+      } else {
+        setQuery(value);
+      }
+    } else {
+      setQuery('');
+    }
+  }, [value]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -147,18 +163,34 @@ interface MultiCityLeg {
 
 export function SearchForm() {
   const router = useRouter();
-  const { activeBookingId, createBooking, setSearchParams: setBookingSearchParams } = useMultiBooking();
-  const [tripType, setTripType] = useState<TripType>('round_trip');
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [departureDate, setDepartureDate] = useState('');
-  const [returnDate, setReturnDate] = useState('');
-  const [passengers, setPassengers] = useState('1');
-  const [cabinClass, setCabinClass] = useState<CabinClass>('economy');
+  const { activeBooking, activeBookingId, createBooking, setSearchParams: setBookingSearchParams } = useMultiBooking();
+
+  // Initialize form state from activeBooking if available
+  const savedParams = activeBooking?.searchParams;
+  const [tripType, setTripType] = useState<TripType>(savedParams?.tripType ?? 'round_trip');
+  const [origin, setOrigin] = useState(savedParams?.origin ?? '');
+  const [destination, setDestination] = useState(savedParams?.destination ?? '');
+  const [departureDate, setDepartureDate] = useState(savedParams?.departureDate ?? '');
+  const [returnDate, setReturnDate] = useState(savedParams?.returnDate ?? '');
+  const [passengers, setPassengers] = useState(savedParams?.passengers?.toString() ?? '1');
+  const [cabinClass, setCabinClass] = useState<CabinClass>(savedParams?.cabinClass ?? 'economy');
   const [isLoading, setIsLoading] = useState(false);
 
   // Multi-city legs (first leg uses origin/destination/departureDate, additional legs stored here)
-  const [additionalLegs, setAdditionalLegs] = useState<MultiCityLeg[]>([]);
+  const [additionalLegs, setAdditionalLegs] = useState<MultiCityLeg[]>(savedParams?.additionalLegs ?? []);
+
+  // Sync form state when switching to a different booking
+  useEffect(() => {
+    const params = activeBooking?.searchParams;
+    setTripType(params?.tripType ?? 'round_trip');
+    setOrigin(params?.origin ?? '');
+    setDestination(params?.destination ?? '');
+    setDepartureDate(params?.departureDate ?? '');
+    setReturnDate(params?.returnDate ?? '');
+    setPassengers(params?.passengers?.toString() ?? '1');
+    setCabinClass(params?.cabinClass ?? 'economy');
+    setAdditionalLegs(params?.additionalLegs ?? []);
+  }, [activeBookingId]); // Only re-run when activeBookingId changes
 
   const addLeg = () => {
     const lastLeg = additionalLegs.length > 0

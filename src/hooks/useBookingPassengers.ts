@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { PassengerFormData } from '@/types/passenger';
 import type { SavedPassenger, BookingPassenger } from '@/types/saved-passenger';
 import { EMPTY_PASSENGER_FORM } from '@/types/passenger';
@@ -42,27 +42,42 @@ function generateTempId(): string {
 }
 
 export function useBookingPassengers(
-  initialCount: number = 0
+  initialPassengers: BookingPassenger[] = []
 ): UseBookingPassengersResult {
   const [passengers, setPassengers] = useState<BookingPassenger[]>(() => {
-    // Initialize with empty passengers based on initial count
-    return Array.from({ length: initialCount }, () => ({
-      id: generateTempId(),
-      data: { ...EMPTY_PASSENGER_FORM },
-      isExpanded: initialCount === 1, // Auto-expand if only one passenger
-      isModified: false,
-    }));
+    // Initialize with provided passengers or empty array
+    if (initialPassengers.length > 0) {
+      return initialPassengers;
+    }
+    return [];
   });
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
     // Auto-expand first passenger if only one
-    if (initialCount === 1) {
-      return new Set([passengers[0]?.id].filter(Boolean));
+    if (initialPassengers.length === 1) {
+      return new Set([initialPassengers[0]?.id].filter(Boolean));
     }
     return new Set();
   });
 
   const [errors, setErrors] = useState<Map<string, Record<string, string>>>(new Map());
+
+  // Track previous initialPassengers to detect booking switches
+  const prevInitialPassengersRef = useRef(initialPassengers);
+
+  // Sync passengers when switching to a different booking
+  useEffect(() => {
+    // Only sync if initialPassengers reference changed (different booking)
+    if (prevInitialPassengersRef.current !== initialPassengers) {
+      prevInitialPassengersRef.current = initialPassengers;
+      setPassengers(initialPassengers);
+      setExpandedIds(initialPassengers.length === 1
+        ? new Set([initialPassengers[0]?.id].filter(Boolean))
+        : new Set()
+      );
+      setErrors(new Map());
+    }
+  }, [initialPassengers]);
 
   // Add a saved passenger to the booking
   const addFromSaved = useCallback((savedPassenger: SavedPassenger) => {

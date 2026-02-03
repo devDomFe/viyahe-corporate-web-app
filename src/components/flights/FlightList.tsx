@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { Box, Text, VStack } from '@chakra-ui/react';
-import { Spinner } from '@chakra-ui/react/spinner';
-import type { FlightOffer } from '@/types/flight';
-import { FlightCard } from './FlightCard';
+import { Box, Text, VStack } from "@chakra-ui/react";
+import { Spinner } from "@chakra-ui/react/spinner";
+import type { FlightOffer } from "@/types/flight";
+import { FlightCard } from "./FlightCard";
 
 interface FlightListProps {
   flights: FlightOffer[];
@@ -31,7 +31,13 @@ export function FlightList({
 
   if (flights.length === 0) {
     return (
-      <Box textAlign="center" py="10" bg="white" borderRadius="lg" boxShadow="sm">
+      <Box
+        textAlign="center"
+        py="10"
+        bg="white"
+        borderRadius="lg"
+        boxShadow="sm"
+      >
         <Text fontSize="lg" color="gray.600">
           No flights found matching your criteria.
         </Text>
@@ -43,7 +49,7 @@ export function FlightList({
   }
 
   return (
-    <VStack gap="4" align="stretch">
+    <VStack gap="4" align="stretch" h="100%" overflowY="auto">
       {flights.map((flight) => (
         <FlightCard
           key={flight.id}

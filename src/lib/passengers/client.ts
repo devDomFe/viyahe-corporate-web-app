@@ -40,11 +40,17 @@ export interface PassengerClient {
   bulkCreate(passengers: CreateSavedPassengerData[]): Promise<SavedPassenger[]>;
 }
 
+// Singleton instance for mock client to persist data across API calls
+let mockClientInstance: PassengerClient | null = null;
+
 /**
  * Get the appropriate passenger client based on environment
  */
 export async function getPassengerClient(): Promise<PassengerClient> {
   // Always use mock for now until Supabase is configured
-  const { MockPassengerClient } = await import('./mock');
-  return new MockPassengerClient();
+  if (!mockClientInstance) {
+    const { MockPassengerClient } = await import('./mock');
+    mockClientInstance = new MockPassengerClient();
+  }
+  return mockClientInstance;
 }
