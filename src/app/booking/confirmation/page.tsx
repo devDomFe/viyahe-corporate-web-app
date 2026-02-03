@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -28,7 +28,7 @@ const STATUS_CONFIG: Record<BookingStatus, { label: string; colorPalette: string
   FULFILLED: { label: 'Fulfilled', colorPalette: 'blue', icon: '✓' },
 };
 
-export default function ConfirmationPage() {
+function ConfirmationPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { bookings, createBooking } = useMultiBooking();
@@ -352,5 +352,28 @@ export default function ConfirmationPage() {
         </VStack>
       </Container>
     </Box>
+  );
+}
+
+function ConfirmationPageLoading() {
+  return (
+    <Box minH="100vh" bg="gray.50">
+      <Container maxW="4xl" py={{ base: '8', md: '10' }} px={{ base: '4', md: '8' }} mx="auto">
+        <Flex justify="center" align="center" minH="400px">
+          <VStack gap="4">
+            <Spinner size="xl" color="blue.500" />
+            <Text color="gray.600">Loading confirmation...</Text>
+          </VStack>
+        </Flex>
+      </Container>
+    </Box>
+  );
+}
+
+export default function ConfirmationPage() {
+  return (
+    <Suspense fallback={<ConfirmationPageLoading />}>
+      <ConfirmationPageContent />
+    </Suspense>
   );
 }
